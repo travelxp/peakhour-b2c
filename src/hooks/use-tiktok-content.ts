@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { contentHubIntegrationsQuery } from "@/lib/nav-queries";
 import { scheduler } from "@/lib/scheduler/client";
-import type { ScheduledItemDto } from "@/lib/scheduler/types";
-import { TIKTOK_CHANNEL, readPostRequests, tiktokAvailable, tiktokStatusView } from "@/lib/tiktok-content-view";
+import { TIKTOK_CHANNEL, tiktokAvailable } from "@/lib/tiktok-content-view";
 
 /** Whether the Content engine shows TikTok to this org: the api's `tiktok` row says `available` (a preview org). Everyone else keeps the coming-soon card. */
 export function useTikTokAvailable(): { available: boolean; loading: boolean } {
@@ -35,29 +33,4 @@ export function useTikTokItems(enabled: boolean) {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
-}
-
-/** The ids whose Post button was pressed in this tab, read after mount (sessionStorage does not exist on the server). */
-export function useTikTokRequests(): [ReadonlySet<string>, (id: string) => void] {
-  const [requested, setRequested] = useState<ReadonlySet<string>>(() => new Set());
-  useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) setRequested(readPostRequests());
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const add = useCallback((id: string) => setRequested((prev) => new Set(prev).add(id)), []);
-  return [requested, add];
-}
-
-/** Approved TikTok items that still wait for the merchant to press Post, for "Needs your OK". Empty unless TikTok is available for this org. */
-export function useTikTokWaiting(): ScheduledItemDto[] {
-  const { available } = useTikTokAvailable();
-  const items = useTikTokItems(available);
-  const [requested] = useTikTokRequests();
-  if (!available) return [];
-  return (items.data?.items ?? []).filter((i) => tiktokStatusView(i, requested.has(i._id)).status === "approved");
 }

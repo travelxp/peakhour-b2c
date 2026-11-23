@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLocale } from "@/hooks/use-locale";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
-import { isVideoPayload, tiktokStatusView, type TikTokStatusView } from "@/lib/tiktok-content-view";
+import { isVideoItem, tiktokStatusView, type TikTokStatusView } from "@/lib/tiktok-content-view";
 
 const TONE: Record<TikTokStatusView["tone"], string> = {
   neutral: "border-border text-muted-foreground",
@@ -25,21 +25,19 @@ export function TikTokStatusChip({ view }: { view: TikTokStatusView }) {
 
 export interface TikTokStatusListProps {
   items: ScheduledItemDto[];
-  /** Ids whose Post button was pressed in this browser (they read "Waiting for TikTok approval"). */
-  requested: ReadonlySet<string>;
-  /** Present on the channel page only: opens the post sheet for an approved item. */
+  /** Present on the channel page only: opens the post sheet for an item that offers Post or Open. */
   onPost?: (item: ScheduledItemDto) => void;
 }
 
 /** TikTok items with their real state. The channel page and Results share it, so a post reads the same on both. */
-export function TikTokStatusList({ items, requested, onPost }: TikTokStatusListProps) {
+export function TikTokStatusList({ items, onPost }: TikTokStatusListProps) {
   const { formatDate } = useLocale();
   return (
     <ul className="space-y-3" aria-label="TikTok posts">
       {items.map((item) => {
-        const view = tiktokStatusView(item, requested.has(item._id));
-        const video = isVideoPayload(item.payload.mediaUrls);
-        const canPost = view.status === "approved" && onPost;
+        const view = tiktokStatusView(item);
+        const video = isVideoItem(item);
+        const canAct = view.action !== null && onPost;
         return (
           <li key={item._id}>
             <Card>
@@ -52,9 +50,9 @@ export function TikTokStatusList({ items, requested, onPost }: TikTokStatusListP
                   <p className="text-xs text-muted-foreground">{view.detail}</p>
                 </div>
                 <TikTokStatusChip view={view} />
-                {canPost ? (
+                {canAct ? (
                   <Button type="button" size="sm" onClick={() => onPost(item)}>
-                    Post to TikTok
+                    {view.action === "open" ? "Open" : "Post to TikTok"}
                   </Button>
                 ) : null}
               </CardContent>

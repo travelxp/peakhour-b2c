@@ -9,8 +9,7 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { NeedsOk, NeedsOkGroup, NeedsOkItem } from "@/hooks/use-needs-ok";
 
-const h = vi.hoisted(() => ({ get: vi.fn(), tiktok: [] as unknown[] }));
-vi.mock("@/hooks/use-tiktok-content", () => ({ useTikTokWaiting: () => h.tiktok }));
+const h = vi.hoisted(() => ({ get: vi.fn() }));
 
 vi.mock("@/lib/api", () => ({ api: { get: h.get }, API_BASE_URL: "https://api.example" }));
 vi.mock("next/link", () => ({
@@ -48,7 +47,6 @@ let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   h.get.mockReset();
-  h.tiktok = [];
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -73,14 +71,24 @@ async function mount() {
 }
 
 describe("NeedsOkScreen", () => {
-  it("lists an approved TikTok post that waits for Post, opening the TikTok page on it, instead of saying nothing waits", async () => {
-    h.tiktok = [{ _id: "tt1", payload: { text: "Fresh loaves today" } }];
-    h.get.mockResolvedValue(answer([group({ source: "scheduled_posts", label: "Posts to approve" })]));
+  it("renders the api's TikTok group as its own group, and merges nothing of its own", async () => {
+    h.get.mockResolvedValue(
+      answer([
+        group({ source: "tiktok", label: "Waiting for TikTok approval", items: [item({ id: "t1", source: "tiktok", title: "Fresh loaves", why: "Saved. Waiting for TikTok.", href: "/dashboard/content/tiktok?post=t1" })] }),
+      ]),
+    );
     await mount();
+    expect([...container.querySelectorAll("h2")].map((e) => e.textContent)).toEqual(["Waiting for TikTok approval (1)"]);
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/dashboard/content/tiktok?post=t1");
+    expect(h.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("names an unread TikTok group instead of saying nothing is waiting", async () => {
+    h.get.mockResolvedValue(answer([group({ source: "tiktok", label: "Waiting for TikTok approval", failed: true })]));
+    await mount();
+    expect(container.textContent).toContain("Waiting for TikTok approval");
+    expect(container.textContent).toContain("not counted here");
     expect(container.textContent).not.toContain("Nothing is waiting for your OK");
-    expect([...container.querySelectorAll("h2")].map((e) => e.textContent)).toEqual(["TikTok posts (1)"]);
-    expect(container.querySelector("a")?.getAttribute("href")).toBe("/dashboard/content/tiktok?post=tt1");
-    expect(container.textContent).toContain("1 thing is waiting for you");
   });
 
   it("groups rows by source with a count, and each row links to the screen that approves it", async () => {

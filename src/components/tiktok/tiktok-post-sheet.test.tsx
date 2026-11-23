@@ -17,10 +17,12 @@ class FakeApiError extends Error {
     super(message);
   }
 }
-const h = vi.hoisted(() => ({ creatorInfo: vi.fn(), post: vi.fn(), get: vi.fn(), commit: vi.fn() }));
+const h = vi.hoisted(() => ({ creatorInfo: vi.fn(), post: vi.fn(), get: vi.fn(), commit: vi.fn(), edit: vi.fn(), resched: vi.fn(), publish: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: { post: h.post, get: h.get }, ApiError: FakeApiError, API_BASE_URL: "https://api.example" }));
 vi.mock("@/lib/api/tiktok-content", () => ({ tiktokContentApi: { creatorInfo: h.creatorInfo } }));
-vi.mock("@/lib/scheduler/client", () => ({ scheduler: { commitPlan: h.commit, publishItemNow: h.post } }));
+vi.mock("@/lib/scheduler/client", () => ({
+  scheduler: { commitPlan: h.commit, publishItemNow: h.publish, editItemPayload: h.edit, rescheduleItem: h.resched },
+}));
 
 const { TikTokPostSheet } = await import("./tiktok-post-sheet");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,15 +36,15 @@ const CREATOR = {
   stitchDisabled: false,
   maxVideoPostDurationSec: 300,
 };
-const ITEM = (mediaUrls: string[]) =>
+const ITEM = (mediaUrls: string[], mediaType: string) =>
   ({
     _id: "item1",
     status: "queued",
     createdAt: "2026-11-23T10:00:00.000Z",
-    payload: { text: "Fresh loaves today", mediaUrls },
+    payload: { text: "Fresh loaves today", mediaUrls, channelOptions: { mediaType } },
   }) as never;
-const VIDEO = ITEM(["https://cdn/v.mp4"]);
-const PHOTOS = ITEM(["https://cdn/1.jpg", "https://cdn/2.jpg"]);
+const VIDEO = ITEM(["https://cdn/v.mp4"], "video");
+const PHOTOS = ITEM(["https://cdn/1.jpg", "https://cdn/2.jpg"], "photo");
 
 let host: HTMLDivElement;
 let root: Root;
@@ -70,6 +72,13 @@ async function click(el: Element | null) {
     (el as HTMLElement).click();
   });
 }
+async function knowLength(seconds: number) {
+  const video = q("video") as HTMLVideoElement;
+  Object.defineProperty(video, "duration", { value: seconds, configurable: true });
+  await act(async () => {
+    video.dispatchEvent(new Event("loadedmetadata"));
+  });
+}
 async function choose(value: string) {
   await act(async () => {
     const el = select();
@@ -84,7 +93,9 @@ beforeEach(() => {
   h.post.mockReset();
   h.get.mockReset();
   h.commit.mockReset();
-  sessionStorage.clear();
+  h.edit.mockReset().mockResolvedValue({});
+  h.resched.mockReset().mockResolvedValue({});
+  h.publish.mockReset();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -107,6 +118,7 @@ describe("TikTokPostSheet", () => {
 
   it("has no privacy level chosen, and Post stays disabled until one is", async () => {
     await mount();
+    await knowLength(60);
     expect(select().value).toBe("");
     expect(postButton().disabled).toBe(true);
     await choose("PUBLIC_TO_EVERYONE");
@@ -149,6 +161,7 @@ describe("TikTokPostSheet", () => {
     expect(q('[data-testid="tiktok-declaration"]')?.textContent).toContain("Music Usage Confirmation");
     expect(q('[data-testid="tiktok-declaration"]')?.textContent).not.toContain("Branded Content Policy");
 
+    await knowLength(60);
     await click(sw("commercial"));
     await choose("PUBLIC_TO_EVERYONE");
     // switched on with no kind chosen: Post stays disabled
@@ -164,8 +177,9 @@ describe("TikTokPostSheet", () => {
     expect(links.every((l) => l?.startsWith("https://www.tiktok.com/"))).toBe(true);
   });
 
-  it("branded content cannot be private: Only me is disabled and explained, and a chosen Only me is cleared", async () => {
+  it("branded content cannot be private: Only me is disabled and explained, and turning it on clears a chosen Only me", async () => {
     await mount();
+    await knowLength(60);
     await choose("SELF_ONLY");
     expect(select().value).toBe("SELF_ONLY");
     await click(sw("commercial"));
@@ -177,30 +191,88 @@ describe("TikTokPostSheet", () => {
     expect(postButton().disabled).toBe(true);
   });
 
-  it("a video longer than the account's limit says so and disables Post", async () => {
+  it("a video longer than the account's limit says so in the problems list and disables Post", async () => {
     await mount();
     await choose("PUBLIC_TO_EVERYONE");
-    const video = q("video") as HTMLVideoElement;
-    Object.defineProperty(video, "duration", { value: 301, configurable: true });
-    await act(async () => {
-      video.dispatchEvent(new Event("loadedmetadata"));
-    });
-    expect(q('[data-testid="tiktok-too-long"]')?.textContent).toContain("up to 300 seconds");
+    await knowLength(301);
+    expect(q('[data-problem="duration"]')?.textContent).toContain("up to 300 seconds");
     expect(postButton().disabled).toBe(true);
   });
 
-  it("Post shows the coming-soon message on the sheet, calls no publish api, and remembers the request", async () => {
+  it("keeps Post off until the video's length is known, and says so when the video cannot be read", async () => {
     await mount();
+    await choose("PUBLIC_TO_EVERYONE");
+    expect(postButton().disabled).toBe(true);
+    expect(q('[data-problem="duration_unknown"]')?.textContent).toContain("Checking the length");
+    await act(async () => {
+      (q("video") as HTMLVideoElement).dispatchEvent(new Event("error"));
+    });
+    expect(postButton().disabled).toBe(true);
+    expect(q('[data-problem="duration_unknown"]')?.textContent).toContain("could not read this video");
+  });
+
+  it("always draws the problems list, and the button's aria-describedby points at it", async () => {
+    await mount(PHOTOS);
+    const describedBy = () => postButton().getAttribute("aria-describedby")!;
+    expect(document.getElementById(describedBy())).not.toBeNull();
+    expect(q('[data-testid="tiktok-problems"]')?.textContent).toContain("Choose who can see this post");
+    await choose("PUBLIC_TO_EVERYONE");
+    expect(document.getElementById(describedBy())).not.toBeNull();
+    expect(q('[data-testid="tiktok-problems"]')?.textContent).toBe("");
+  });
+
+  it("turning on Branded content clears a chosen Only me", async () => {
+    await mount(PHOTOS);
+    await choose("SELF_ONLY");
+    await click(sw("commercial"));
+    await click(q('[id$="-your-brand"]'));
+    expect(select().value).toBe("SELF_ONLY"); // your brand alone may be private
+    await click(q('[id$="-branded"]'));
+    expect(select().value).toBe("");
+  });
+
+  it("Post saves the choices on the item, schedules it for now, then shows the coming-soon message; it never publishes", async () => {
+    h.creatorInfo.mockResolvedValue({ ...CREATOR, duetDisabled: true });
+    await mount();
+    await knowLength(60);
     await choose("FOLLOWER_OF_CREATOR");
+    await click(sw("comments"));
+    await click(sw("stitch"));
+    await click(sw("commercial"));
+    await click(q('[id$="-your-brand"]'));
     await click(postButton());
+    expect(h.edit).toHaveBeenCalledWith("item1", {
+      channelOptions: {
+        privacyLevel: "FOLLOWER_OF_CREATOR",
+        allowComment: true,
+        allowDuet: false,
+        allowStitch: true,
+        brandOrganicToggle: true,
+        brandContentToggle: false,
+      },
+    });
+    expect(h.resched).toHaveBeenCalledTimes(1);
+    expect(h.resched.mock.calls[0][0]).toBe("item1");
+    expect(h.resched.mock.calls[0][1].mode).toBe("item");
+    // saved before it is scheduled
+    expect(h.edit.mock.invocationCallOrder[0]).toBeLessThan(h.resched.mock.invocationCallOrder[0]);
     expect(q('[data-testid="tiktok-coming-soon"]')?.textContent).toBe(
       "TikTok integration is coming soon. Your post is saved and will publish once TikTok approves Peakhour.",
     );
+    expect(h.publish).not.toHaveBeenCalled();
     expect(h.post).not.toHaveBeenCalled();
     expect(h.commit).not.toHaveBeenCalled();
-    expect(h.get).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem("ph:tiktok-post-requested")).toBe('["item1"]');
     expect(text()).not.toMatch(/published|is live|posted successfully/i);
+  });
+
+  it("a failed save says so and does not show the coming-soon message", async () => {
+    h.edit.mockRejectedValue(new Error("Nope"));
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(h.resched).not.toHaveBeenCalled();
+    expect(q('[data-testid="tiktok-coming-soon"]')).toBeNull();
+    expect(text()).toContain("Nope");
   });
 
   it("NEEDS_REAUTH shows Reconnect", async () => {

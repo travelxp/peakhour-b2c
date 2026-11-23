@@ -3,31 +3,24 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, X as XIcon } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DrivePicker } from "@/components/composer";
-import { MediaImage } from "@/components/shared/media-image";
+import { PostMedia, dropOutline, usePostMedia } from "@/components/composer/post-media";
 import { ApiError } from "@/lib/api";
 import { scheduler } from "@/lib/scheduler/client";
 import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { TIKTOK_ITEMS_KEY } from "@/hooks/use-tiktok-content";
-import { TIKTOK_CHANNEL } from "@/lib/tiktok-content-view";
+import { TIKTOK_CHANNEL, mediaRefusal, mediaTypeOf } from "@/lib/tiktok-content-view";
 
 /** TikTok's caption limit (UTF-16 code units), the api's `TIKTOK_CAPTION_MAX`. The api refuses anything longer. */
 export const TIKTOK_CAPTION_LIMIT = 2200;
 
 /** The post is saved for a week ahead: TikTok publishing is not open, and nothing should try to send it before the merchant chooses to post. */
 const SAVE_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
-
-interface Media {
-  url: string;
-  mime: string;
-  name?: string | undefined;
-}
 
 export function TikTokNewPostSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -46,20 +39,26 @@ export function TikTokNewPostSheet({ open, onOpenChange }: { open: boolean; onOp
 function Composer({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
-  const [media, setMedia] = useState<Media[]>([]);
+  // The shared post media: the picker's own rules, dedupe by file, a message for each file turned away, and drop or paste.
+  const postMedia = usePostMedia(TIKTOK_CHANNEL);
+  const { media, urls, adding, dropping, dropRef } = postMedia;
   const [error, setError] = useState<string | null>(null);
 
-  const hasVideo = media.some((m) => m.mime.startsWith("video/"));
+  const mimes = media.map((m) => m.mime);
   const problems: string[] = [];
   if (media.length === 0) problems.push("Add a video or photos.");
+  // One video OR photos, judged by what each file is (its type), never by its name.
+  const refusal = mediaRefusal(mimes);
+  if (refusal) problems.push(refusal);
   if (text.length > TIKTOK_CAPTION_LIMIT) problems.push(`The caption is ${text.length} characters. TikTok takes up to ${TIKTOK_CAPTION_LIMIT}.`);
 
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: ({ urls, kinds }: { urls: string[]; kinds: string[] }) =>
       scheduler.commitPlan({
         title: text.trim().slice(0, 60) || "TikTok post",
         source: { sourceType: "ad_hoc", sourceTextHash: sourceTextHash(text.trim()) },
-        channels: [{ channel: TIKTOK_CHANNEL, payload: { text: text.trim(), mediaUrls: media.map((m) => m.url) } }],
+        // No privacy here: the merchant chooses it on the post sheet, and the api checks it when the post is sent.
+        channels: [{ channel: TIKTOK_CHANNEL, payload: { text: text.trim(), mediaUrls: urls, channelOptions: { mediaType: mediaTypeOf(kinds) } } }],
         staggerStrategy: "synchronized",
         canonicalScheduledAtUtc: new Date(Date.now() + SAVE_AHEAD_MS).toISOString(),
         timezone: detectTimezone(),
@@ -77,7 +76,7 @@ function Composer({ onDone }: { onDone: () => void }) {
   });
 
   return (
-    <div className="flex-1 space-y-4 px-6 py-5">
+    <div ref={dropRef} className={`flex-1 space-y-4 px-6 py-5 ${dropOutline(dropping) ?? ""}`} data-testid="tiktok-drop-target">
       <div className="space-y-1.5">
         <Label htmlFor="tiktok-caption" className="text-sm font-semibold">
           Caption
@@ -98,42 +97,7 @@ function Composer({ onDone }: { onDone: () => void }) {
         </p>
       </div>
 
-      {media.length > 0 ? (
-        <ul className="flex flex-wrap gap-2" aria-label="Attached media">
-          {media.map((m, i) => (
-            <li key={`${m.url}-${i}`} className="relative size-20 overflow-hidden rounded-md border bg-muted">
-              {m.mime.startsWith("video/") ? (
-                <span className="flex size-full items-center justify-center p-1 text-center text-xs text-muted-foreground">{m.name ?? "Video"}</span>
-              ) : (
-                <MediaImage src={m.url} alt={m.name ?? "Attached photo"} width={80} height={80} className="size-full object-cover" />
-              )}
-              <button
-                type="button"
-                onClick={() => setMedia((prev) => prev.filter((_, j) => j !== i))}
-                className="absolute right-0.5 top-0.5 rounded-full bg-background/90 p-0.5 shadow"
-                aria-label={`Remove ${m.name ?? "this file"}`}
-              >
-                <XIcon className="size-3" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <DrivePicker
-          destination={{ kind: "post", channel: TIKTOK_CHANNEL }}
-          attached={media.length}
-          addLabel="Add to post"
-          onSelect={(assets) =>
-            setMedia((prev) => {
-              const have = new Set(prev.map((m) => m.url));
-              return [...prev, ...assets.filter((a) => !have.has(a.url)).map((a) => ({ url: a.url, mime: a.mime, name: a.name }))];
-            })
-          }
-        />
-        <span className="text-xs text-muted-foreground">One video, or photos. {hasVideo ? "A video posts on its own." : ""}</span>
-      </div>
+      <PostMedia state={postMedia} hint="One video, or photos." />
 
       {problems.length > 0 && (text !== "" || media.length > 0) ? (
         <ul className="space-y-1 text-xs text-muted-foreground" role="status">
@@ -149,7 +113,7 @@ function Composer({ onDone }: { onDone: () => void }) {
       ) : null}
 
       <div className="flex items-center gap-3 border-t pt-4">
-        <Button type="button" onClick={() => save.mutate()} disabled={problems.length > 0 || save.isPending} aria-busy={save.isPending}>
+        <Button type="button" onClick={() => save.mutate({ urls, kinds: mimes })} disabled={problems.length > 0 || adding || save.isPending} aria-busy={save.isPending}>
           {save.isPending ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
           {save.isPending ? "Saving..." : "Approve and save"}
         </Button>

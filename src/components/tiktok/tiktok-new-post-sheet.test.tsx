@@ -10,12 +10,15 @@ vi.mock("@/lib/api", () => ({ api: {}, ApiError: class extends Error {}, API_BAS
 vi.mock("@/lib/scheduler/client", () => ({ scheduler: { commitPlan: h.commit, publishItemNow: h.publish } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 vi.mock("@/components/shared/media-image", () => ({ MediaImage: () => null }));
-vi.mock("@/components/composer", () => ({
-  DrivePicker: ({ onSelect }: { onSelect: (a: { url: string; mime: string; name?: string }[]) => void }) => (
-    <button type="button" onClick={() => onSelect([{ url: "https://cdn/v.mp4", mime: "video/mp4", name: "v.mp4" }])}>
-      Pick a video
+const h2 = vi.hoisted(() => ({ pick: [] as { id: string; url: string; mime: string; name?: string }[] }));
+// The shared picker and drop/paste are stood in for: the real usePostMedia (dedupe, refusals) runs on top of them.
+vi.mock("@/components/drive/drive-picker", () => ({
+  DrivePicker: ({ onSelect }: { onSelect: (a: unknown[]) => void }) => (
+    <button type="button" onClick={() => onSelect(h2.pick)}>
+      Pick files
     </button>
   ),
+  useDropPaste: () => ({ ref: { current: null }, dragging: false, busy: false }),
 }));
 
 const { TikTokNewPostSheet } = await import("./tiktok-new-post-sheet");
@@ -51,19 +54,55 @@ describe("TikTokNewPostSheet", () => {
     expect(btn("Approve and save").disabled).toBe(true);
   });
 
-  it("commits one TikTok item with the caption and the video, and publishes nothing", async () => {
+  const type = async (value: string) => {
     const caption = document.body.querySelector("textarea") as HTMLTextAreaElement;
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
-      setter.call(caption, "Fresh loaves today");
+      setter.call(caption, value);
       caption.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await act(async () => btn("Pick a video").click());
+  };
+  const pick = async (files: typeof h2.pick) => {
+    h2.pick = files;
+    await act(async () => btn("Pick files").click());
+  };
+
+  it("commits one TikTok item with no privacy and channelOptions.mediaType from the file's type, and publishes nothing", async () => {
+    await type("Fresh loaves today");
+    await pick([{ id: "f1", url: "https://cdn/clip", mime: "video/mp4", name: "clip" }]);
     expect(btn("Approve and save").disabled).toBe(false);
     await act(async () => btn("Approve and save").click());
     expect(h.commit).toHaveBeenCalledTimes(1);
     const body = h.commit.mock.calls[0][0];
-    expect(body.channels).toEqual([{ channel: "tiktok", payload: { text: "Fresh loaves today", mediaUrls: ["https://cdn/v.mp4"] } }]);
+    expect(body.channels).toEqual([
+      { channel: "tiktok", payload: { text: "Fresh loaves today", mediaUrls: ["https://cdn/clip"], channelOptions: { mediaType: "video" } } },
+    ]);
+    expect(JSON.stringify(body)).not.toMatch(/privacy/i);
+    expect(new Date(body.canonicalScheduledAtUtc).getTime()).toBeGreaterThan(Date.now() + 24 * 3600 * 1000);
     expect(h.publish).not.toHaveBeenCalled();
+  });
+
+  it("types photos as photo, by mime and not by the link's extension", async () => {
+    await type("Look");
+    await pick([{ id: "f1", url: "https://cdn/pic.mp4", mime: "image/jpeg" }]);
+    await act(async () => btn("Approve and save").click());
+    expect(h.commit.mock.calls[0][0].channels[0].payload.channelOptions).toEqual({ mediaType: "photo" });
+  });
+
+  it("refuses a video mixed with photos, with a clear message, and keeps Save off", async () => {
+    await type("Mix");
+    await pick([
+      { id: "f1", url: "https://cdn/v", mime: "video/mp4" },
+      { id: "f2", url: "https://cdn/p", mime: "image/png" },
+    ]);
+    expect(document.body.textContent).toContain("one video or photos, not both");
+    expect(btn("Approve and save").disabled).toBe(true);
+  });
+
+  it("does not add the same file twice (by asset id, even with a new link)", async () => {
+    await type("Dup");
+    await pick([{ id: "f1", url: "https://cdn/a?sig=1", mime: "image/png", name: "a" }]);
+    await pick([{ id: "f1", url: "https://cdn/a?sig=2", mime: "image/png", name: "a" }]);
+    expect(document.body.querySelectorAll('ul[aria-label="Attached media"] li')).toHaveLength(1);
   });
 });

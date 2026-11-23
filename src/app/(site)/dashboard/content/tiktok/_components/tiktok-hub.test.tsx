@@ -93,7 +93,6 @@ beforeEach(() => {
   h.search = "";
   h.creatorInfo.mockReset().mockResolvedValue(CREATOR);
   h.listItems.mockReset().mockResolvedValue({ items: [] });
-  sessionStorage.clear();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -146,24 +145,33 @@ describe("TikTok page", () => {
     expect(document.body.querySelector('[data-sheet="post"]')?.getAttribute("data-item")).toBe("i1");
   });
 
-  it("an item the scheduler has parked (needs_action) reads Waiting for TikTok approval, with no Post button", async () => {
-    h.listItems.mockResolvedValue({ items: [item({ status: "needs_action" })] });
+  it("an item parked as tiktok_coming_soon reads Waiting for TikTok approval, with no button, here and in Results", async () => {
+    h.listItems.mockResolvedValue({ items: [item({ status: "needs_action", attempts: [{ errorCode: "tiktok_coming_soon" }] })] });
     await mount(<TikTokHub />);
     expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Waiting for TikTok approval");
-    expect(buttons().some((b) => b.textContent === "Post to TikTok")).toBe(false);
-    expect(text()).not.toMatch(/published/i);
-  });
-
-  it("an item whose Post was pressed in this tab reads Waiting for TikTok approval, on the page and in Results", async () => {
-    sessionStorage.setItem("ph:tiktok-post-requested", '["i1"]');
-    h.listItems.mockResolvedValue({ items: [item()] });
-    await mount(<TikTokHub />);
-    expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Waiting for TikTok approval");
+    expect(buttons().some((b) => b.textContent === "Post to TikTok" || b.textContent === "Open")).toBe(false);
     await act(async () => root.unmount());
     root = createRoot(host);
     await mount(<TikTokResults />);
     expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Waiting for TikTok approval");
     expect(text()).not.toMatch(/published/i);
+  });
+
+  it("tiktok_privacy_required reads Choose who can watch it, with Open, which opens the sheet", async () => {
+    h.listItems.mockResolvedValue({ items: [item({ status: "needs_action", attempts: [{ errorCode: "tiktok_privacy_required" }] })] });
+    await mount(<TikTokHub />);
+    expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Choose who can watch it");
+    await act(async () => {
+      buttons().find((b) => b.textContent === "Open")!.click();
+    });
+    expect(document.body.querySelector('[data-sheet="post"]')?.getAttribute("data-item")).toBe("i1");
+  });
+
+  it("sending and retrying items offer no Post", async () => {
+    h.listItems.mockResolvedValue({ items: [item({ _id: "a", status: "in_flight" }), item({ _id: "b", status: "awaiting_retry" })] });
+    await mount(<TikTokHub />);
+    expect([...host.querySelectorAll('[data-testid="tiktok-status"]')].map((e) => e.textContent)).toEqual(["Sending…", "Retrying"]);
+    expect(buttons().some((b) => b.textContent === "Post to TikTok")).toBe(false);
   });
 
   it("opens the post sheet on ?post=<id> from Needs your OK", async () => {

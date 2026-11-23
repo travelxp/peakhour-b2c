@@ -13,8 +13,8 @@ import { TikTokStatusList } from "@/components/tiktok/tiktok-status-list";
 import { ApiError } from "@/lib/api";
 import { tiktokContentApi, type TikTokCreatorInfo } from "@/lib/api/tiktok-content";
 import { reconnectHref } from "@/lib/integrations-connect";
-import { useTikTokAvailable, useTikTokItems, useTikTokRequests } from "@/hooks/use-tiktok-content";
-import { TIKTOK_PATH, TIKTOK_PROVIDER, tiktokAccountState } from "@/lib/tiktok-content-view";
+import { useTikTokAvailable, useTikTokItems } from "@/hooks/use-tiktok-content";
+import { TIKTOK_PATH, TIKTOK_PROVIDER, tiktokAccountState, tiktokStatusView } from "@/lib/tiktok-content-view";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
 
 // Lazy: both sheets draw only after a click, and the route stays small.
@@ -84,12 +84,11 @@ function TikTokHubBody() {
 function Ready({ creator }: { creator: TikTokCreatorInfo }) {
   const [composing, setComposing] = useState(false);
   const [posting, setPosting] = useState<ScheduledItemDto | null>(null);
-  const [requested, addRequested] = useTikTokRequests();
   const items = useTikTokItems(true);
   const wanted = useSearchParams().get("post");
   // A link from "Needs your OK" opens the sheet on its item once, after the list has loaded.
   const [linked, setLinked] = useState(false);
-  const linkedItem = wanted && !linked ? items.data?.items.find((i) => i._id === wanted) : undefined;
+  const linkedItem = wanted && !linked ? items.data?.items.find((i) => i._id === wanted && tiktokStatusView(i).action !== null) : undefined;
   if (linkedItem) {
     setLinked(true);
     setPosting(linkedItem);
@@ -119,7 +118,7 @@ function Ready({ creator }: { creator: TikTokCreatorInfo }) {
       </Card>
 
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" data-testid="tiktok-notice">
-        Posting to TikTok opens once TikTok approves Peakhour. Until then, posts you approve here are saved and wait for that approval.
+        Posting to TikTok opens once TikTok approves Peakhour. Until then, posts you choose to post are saved and wait for that approval.
       </p>
 
       <section aria-label="Your TikTok posts" className="space-y-3">
@@ -142,12 +141,12 @@ function Ready({ creator }: { creator: TikTokCreatorInfo }) {
             </div>
           </EmptyState>
         ) : (
-          <TikTokStatusList items={list} requested={requested} onPost={setPosting} />
+          <TikTokStatusList items={list} onPost={setPosting} />
         )}
       </section>
 
       {composing ? <TikTokNewPostSheet open onOpenChange={setComposing} /> : null}
-      <TikTokPostSheet item={posting} onOpenChange={(o) => !o && setPosting(null)} onRequested={addRequested} />
+      <TikTokPostSheet item={posting} onOpenChange={(o) => !o && setPosting(null)} />
     </div>
   );
 }

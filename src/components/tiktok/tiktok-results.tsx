@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TikTokStatusList } from "@/components/tiktok/tiktok-status-list";
-import { useTikTokAvailable, useTikTokItems, useTikTokRequests } from "@/hooks/use-tiktok-content";
+import { useTikTokAvailable, useTikTokItems } from "@/hooks/use-tiktok-content";
 import { TIKTOK_PATH } from "@/lib/tiktok-content-view";
 
 /**
@@ -12,7 +12,6 @@ import { TIKTOK_PATH } from "@/lib/tiktok-content-view";
 export function TikTokResults() {
   const { available } = useTikTokAvailable();
   const items = useTikTokItems(available);
-  const [requested] = useTikTokRequests();
   const list = items.data?.items ?? [];
   if (!available || list.length === 0) return null;
   return (
@@ -25,7 +24,7 @@ export function TikTokResults() {
           Open TikTok
         </Link>
       </div>
-      <TikTokStatusList items={list} requested={requested} />
+      <TikTokStatusList items={list} />
     </section>
   );
 }

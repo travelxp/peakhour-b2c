@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,17 +11,20 @@ import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api";
 import { tiktokContentApi, type TikTokCreatorInfo } from "@/lib/api/tiktok-content";
 import { reconnectHref } from "@/lib/integrations-connect";
+import { scheduler } from "@/lib/scheduler/client";
+import { TIKTOK_ITEMS_KEY } from "@/hooks/use-tiktok-content";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
 import {
   TIKTOK_COMING_SOON_MESSAGE,
   TIKTOK_PATH,
   TIKTOK_PROVIDER,
   commercialLabel,
-  isVideoPayload,
+  isVideoItem,
+  type VideoLength,
   postProblems,
   privacyDisabled,
   privacyLabel,
-  rememberPostRequest,
+  SELF_ONLY,
   tiktokAccountState,
 } from "@/lib/tiktok-content-view";
 
@@ -33,18 +36,17 @@ export interface TikTokPostSheetProps {
   /** The approved item to post. Null closes the sheet. */
   item: ScheduledItemDto | null;
   onOpenChange: (open: boolean) => void;
-  /** Called once the merchant pressed Post (nothing was sent to TikTok). */
-  onRequested?: (itemId: string) => void;
 }
 
 /**
  * The TikTok post sheet: the last step before a post, built to TikTok's Content Posting requirements (the account, the preview, who can see it,
  * comments, Duet and Stitch, commercial content, the declaration, the length limit).
  *
- * ★POST SENDS NOTHING. TikTok has not approved Peakhour to publish, so the button answers on the sheet and remembers the request for this tab;
- * it calls no publish route and nothing on screen says the post is live.
+ * POST SAVES THE CHOICES AND SENDS NOTHING TO TIKTOK. TikTok has not approved Peakhour to publish, so Post stores the choices on the item and
+ * schedules it for now; the api parks it as "waiting for TikTok approval" without calling TikTok. The sheet then says so. It never calls
+ * publish-now and nothing on screen says the post is live.
  */
-export function TikTokPostSheet({ item, onOpenChange, onRequested }: TikTokPostSheetProps) {
+export function TikTokPostSheet({ item, onOpenChange }: TikTokPostSheetProps) {
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-xl">
@@ -52,13 +54,13 @@ export function TikTokPostSheet({ item, onOpenChange, onRequested }: TikTokPostS
           <SheetTitle className="text-base">Post to TikTok</SheetTitle>
           <SheetDescription className="text-xs">Check how this post will look and choose who can see it.</SheetDescription>
         </SheetHeader>
-        {item ? <SheetBody key={item._id} item={item} onRequested={onRequested} /> : null}
+        {item ? <SheetBody key={item._id} item={item} /> : null}
       </SheetContent>
     </Sheet>
   );
 }
 
-function SheetBody({ item, onRequested }: { item: ScheduledItemDto; onRequested: ((id: string) => void) | undefined }) {
+function SheetBody({ item }: { item: ScheduledItemDto }) {
   const creator = useQuery({
     queryKey: ["tiktok", "creator-info"],
     queryFn: () => tiktokContentApi.creatorInfo(),
@@ -102,38 +104,58 @@ function SheetBody({ item, onRequested }: { item: ScheduledItemDto; onRequested:
       </div>
     );
   }
-  return <PostForm item={item} creator={creator.data} onRequested={onRequested} />;
+  return <PostForm item={item} creator={creator.data} />;
 }
 
-function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; creator: TikTokCreatorInfo; onRequested: ((id: string) => void) | undefined }) {
+function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCreatorInfo }) {
   const id = useId();
   const media = item.payload.mediaUrls ?? [];
-  const video = isVideoPayload(media);
+  const video = isVideoItem(item);
+  const queryClient = useQueryClient();
 
   // No privacy level is chosen for the merchant: the audience of a post is theirs to decide.
-  const [chosenPrivacy, setPrivacy] = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState<string | null>(null);
   const [comments, setComments] = useState(false);
   const [duet, setDuet] = useState(false);
   const [stitch, setStitch] = useState(false);
   const [commercial, setCommercial] = useState(false);
   const [yourBrand, setYourBrand] = useState(false);
   const [brandedContent, setBrandedContent] = useState(false);
-  const [duration, setDuration] = useState<number | null>(null);
+  // A video's length is read from the file itself: Post stays off until it is known, and an unreadable file says so.
+  const [length, setLength] = useState<VideoLength>({ state: "checking" });
   const [answered, setAnswered] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
-  // Branded content cannot be private: a chosen "Only me" stops counting once branded content is on, so the merchant chooses again.
-  const privacy = chosenPrivacy !== null && privacyDisabled(chosenPrivacy, { commercial, brandedContent }) ? null : chosenPrivacy;
   const choices = { privacy, commercial, yourBrand, brandedContent };
-  const problems = postProblems(choices, video ? { kind: "video", durationSec: duration } : { kind: "photos" }, creator.maxVideoPostDurationSec);
+  const problems = postProblems(choices, video ? { kind: "video", length } : { kind: "photos" }, creator.maxVideoPostDurationSec);
   const label = commercialLabel(choices);
-  const tooLong = problems.some((p) => p.key === "duration");
 
-  function post() {
-    // ★No publish call. The request is remembered for this tab so the status reads "Waiting for TikTok approval".
-    rememberPostRequest(item._id);
-    onRequested?.(item._id);
-    setAnswered(true);
-  }
+  // Post saves the choices on the item and schedules it for now. The api parks it (needs_action, tiktok_coming_soon) without calling TikTok.
+  const save = useMutation({
+    mutationFn: async () => {
+      await scheduler.editItemPayload(item._id, {
+        channelOptions: {
+          privacyLevel: privacy,
+          allowComment: comments && !creator.commentDisabled,
+          allowDuet: video && duet && !creator.duetDisabled,
+          allowStitch: video && stitch && !creator.stitchDisabled,
+          brandOrganicToggle: commercial && yourBrand,
+          brandContentToggle: commercial && brandedContent,
+        },
+      });
+      await scheduler.rescheduleItem(item._id, { scheduledAtUtc: new Date(), mode: "item" });
+    },
+    onSuccess: () => {
+      setFailure(null);
+      setAnswered(true);
+      void queryClient.invalidateQueries({ queryKey: TIKTOK_ITEMS_KEY });
+    },
+    onError: (err: unknown) => {
+      setAnswered(false);
+      const raw = err instanceof Error ? err.message : "";
+      setFailure(raw && raw !== "Invalid request body" ? raw : "We could not save your choices. Try again.");
+    },
+  });
 
   const options = creator.privacyLevelOptions;
   const nickname = creator.nickname ?? "your TikTok account";
@@ -166,7 +188,11 @@ function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; crea
             preload="metadata"
             className="max-h-72 w-full rounded-md border bg-black"
             aria-label="Video preview"
-            onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : null)}
+            onLoadedMetadata={(e) => {
+              const d = e.currentTarget.duration;
+              setLength(Number.isFinite(d) && d > 0 ? { state: "known", seconds: d } : { state: "unreadable" });
+            }}
+            onError={() => setLength({ state: "unreadable" })}
           />
         ) : (
           <ul className="flex flex-wrap gap-2" aria-label="Photos in this post">
@@ -187,12 +213,6 @@ function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; crea
           </p>
         ) : null}
       </section>
-
-      {tooLong ? (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive" data-testid="tiktok-too-long">
-          {problems.find((p) => p.key === "duration")?.message}
-        </p>
-      ) : null}
 
       <div className="space-y-2">
         <Label htmlFor={`${id}-privacy`} className="text-sm font-semibold">
@@ -280,7 +300,11 @@ function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; crea
               </div>
             </div>
             <div className="flex items-start gap-2">
-              <Checkbox id={`${id}-branded`} checked={brandedContent} onCheckedChange={(v) => setBrandedContent(v === true)} />
+              <Checkbox id={`${id}-branded`} checked={brandedContent} onCheckedChange={(v) => {
+                    setBrandedContent(v === true);
+                    // Branded content cannot be private: an "Only me" already chosen is cleared, so the merchant chooses again.
+                    if (v === true && privacy === SELF_ONLY) setPrivacy(null);
+                  }} />
               <div className="space-y-0.5">
                 <Label htmlFor={`${id}-branded`} className="text-sm">
                   Branded content
@@ -298,15 +322,16 @@ function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; crea
       </fieldset>
 
       <div className="space-y-3 border-t pt-4">
-        {problems.length > 0 && !tooLong ? (
-          <ul id={`${id}-why`} className="space-y-1 text-xs text-muted-foreground" data-testid="tiktok-problems">
-            {problems.map((p) => (
-              <li key={p.key + p.message}>{p.message}</li>
-            ))}
-          </ul>
-        ) : null}
-        <Button type="button" onClick={post} disabled={problems.length > 0} aria-describedby={problems.length > 0 ? `${id}-why` : undefined}>
-          Post
+        {/* Always drawn, so the button's aria-describedby always points at an element that exists. */}
+        <ul id={`${id}-why`} className="space-y-1 text-xs text-muted-foreground" data-testid="tiktok-problems" role="status">
+          {problems.map((p) => (
+            <li key={p.key + p.message} data-problem={p.key}>
+              {p.message}
+            </li>
+          ))}
+        </ul>
+        <Button type="button" onClick={() => save.mutate()} disabled={problems.length > 0 || save.isPending || answered} aria-busy={save.isPending} aria-describedby={`${id}-why`}>
+          {save.isPending ? "Saving..." : "Post"}
         </Button>
         <p className="text-xs text-muted-foreground" data-testid="tiktok-declaration">
           By posting, you agree to TikTok&apos;s{" "}
@@ -324,6 +349,11 @@ function PostForm({ item, creator, onRequested }: { item: ScheduledItemDto; crea
           ) : null}
           .
         </p>
+        {failure ? (
+          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {failure}
+          </p>
+        ) : null}
         {answered ? (
           <p role="status" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-on-tint" data-testid="tiktok-coming-soon">
             {TIKTOK_COMING_SOON_MESSAGE}

@@ -71,41 +71,80 @@ export function commercialLabel(c: Pick<PostChoices, "commercial" | "yourBrand" 
 
 export interface PostProblem {
   /** Stable key for tests. */
-  key: "privacy" | "commercial_kind" | "duration";
+  key: "privacy" | "commercial_kind" | "duration" | "duration_unknown";
   message: string;
 }
 
-/** Why Post is disabled. Empty means the sheet may offer Post. The duration check applies to a video only. */
+/** What the sheet knows about the video's length: not yet, unreadable, or a number of seconds. */
+export type VideoLength = { state: "checking" } | { state: "unreadable" } | { state: "known"; seconds: number };
+
+/**
+ * Why Post is disabled. Empty means the sheet may offer Post. A video's length must be KNOWN before Post is offered: an unread or unreadable
+ * video cannot be checked against the account's limit, so it never passes by default.
+ */
 export function postProblems(
   c: PostChoices,
-  media: { kind: "video"; durationSec?: number | null } | { kind: "photos" },
-  maxVideoPostDurationSec?: number,
+  media: { kind: "video"; length: VideoLength } | { kind: "photos" },
+  maxVideoPostDurationSec?: number | null,
 ): PostProblem[] {
   const out: PostProblem[] = [];
   if (!c.privacy) out.push({ key: "privacy", message: "Choose who can see this post." });
   if (c.commercial && !c.yourBrand && !c.brandedContent) {
     out.push({ key: "commercial_kind", message: "Say whether this promotes your own brand, a paid partnership, or both." });
   }
-  if (c.privacy === SELF_ONLY && c.commercial && c.brandedContent) {
-    out.push({ key: "privacy", message: "Branded content cannot be private. Choose a different audience." });
-  }
-  if (
-    media.kind === "video" &&
-    typeof maxVideoPostDurationSec === "number" &&
-    typeof media.durationSec === "number" &&
-    media.durationSec > maxVideoPostDurationSec
-  ) {
-    out.push({
-      key: "duration",
-      message: `This video is ${Math.round(media.durationSec)} seconds long. This TikTok account can post videos up to ${maxVideoPostDurationSec} seconds.`,
-    });
+  if (media.kind === "video") {
+    const len = media.length;
+    if (len.state === "checking") out.push({ key: "duration_unknown", message: "Checking the length of your video." });
+    else if (len.state === "unreadable") {
+      out.push({ key: "duration_unknown", message: "We could not read this video, so we cannot check its length. Choose another video." });
+    } else if (typeof maxVideoPostDurationSec === "number" && len.seconds > maxVideoPostDurationSec) {
+      out.push({
+        key: "duration",
+        message: `This video is ${Math.round(len.seconds)} seconds long. This TikTok account can post videos up to ${maxVideoPostDurationSec} seconds.`,
+      });
+    }
   }
   return out;
 }
 
+// -- Media --------------------------------------------------------------------------------------------
+
+/** What the composer holds, judged by mime type (never by file name): a TikTok post is one video, or photos, never both. */
+export function mediaKind(mimes: string[]): "none" | "video" | "photos" | "mixed" | "many_videos" {
+  const videos = mimes.filter((m) => m.startsWith("video/")).length;
+  const others = mimes.length - videos;
+  if (mimes.length === 0) return "none";
+  if (videos > 0 && others > 0) return "mixed";
+  if (videos > 1) return "many_videos";
+  return videos === 1 ? "video" : "photos";
+}
+
+/** `channelOptions.mediaType` the item is committed with. */
+export function mediaTypeOf(mimes: string[]): "video" | "photo" {
+  return mimes.some((m) => m.startsWith("video/")) ? "video" : "photo";
+}
+
+/** The message under the picker when the post holds something TikTok does not take. Null when it is fine. */
+export function mediaRefusal(mimes: string[]): string | null {
+  switch (mediaKind(mimes)) {
+    case "mixed":
+      return "A TikTok post is one video or photos, not both. Remove the video or remove the photos.";
+    case "many_videos":
+      return "A TikTok post takes one video. Remove the extra videos.";
+    default:
+      return null;
+  }
+}
+
+/** True for an item committed as a video. Read from `channelOptions.mediaType`, which the composer set from the file's type. */
+export function isVideoItem(item: Pick<ScheduledItemDto, "payload">): boolean {
+  const opts = item.payload.channelOptions as { mediaType?: unknown } | undefined;
+  return opts?.mediaType === "video";
+}
+
 // -- Status -------------------------------------------------------------------------------------------
 
-export type TikTokStatus = "approved" | "waiting" | "published" | "failed" | "cancelled";
+export type TikTokStatus = "approved" | "waiting" | "choose_privacy" | "sending" | "retrying" | "published" | "failed" | "cancelled" | "attention";
 
 export interface TikTokStatusView {
   status: TikTokStatus;
@@ -113,71 +152,59 @@ export interface TikTokStatusView {
   /** One plain sentence under the chip. */
   detail: string;
   tone: "neutral" | "info" | "success" | "warning" | "destructive";
+  /** The button the row offers: Post to TikTok for an approved item, Open for one that needs a choice, none otherwise. */
+  action: "post" | "open" | null;
 }
 
-const WAITING: Omit<TikTokStatusView, "status"> = {
-  label: "Waiting for TikTok approval",
-  detail: "Your post is saved. It will publish once TikTok approves Peakhour.",
-  tone: "warning",
-};
+export const COMING_SOON_CODE = "tiktok_coming_soon";
+export const PRIVACY_REQUIRED_CODE = "tiktok_privacy_required";
+
+/** The code the scheduler parked the item with: the last attempt's error. */
+export function lastErrorCode(item: Pick<ScheduledItemDto, "attempts">): string | undefined {
+  return item.attempts?.at(-1)?.errorCode;
+}
 
 /**
- * The state of a TikTok item, in words. `requested` is true once the merchant pressed Post in this browser: nothing is sent to TikTok, so the
- * only honest name for that is waiting. An item the scheduler has parked (needs_action, which is what TikTok's switch-off answers with) reads
- * the same. "Published" is shown only when the scheduler holds a link to the live post.
+ * The state of a TikTok item, in words, from the api's own status and nothing else. A post is "Published" only when the scheduler holds the
+ * link; published without one reads "Published, link coming".
  */
-export function tiktokStatusView(item: Pick<ScheduledItemDto, "status" | "externalUrl">, requested = false): TikTokStatusView {
+export function tiktokStatusView(item: Pick<ScheduledItemDto, "status" | "externalUrl" | "attempts">): TikTokStatusView {
   switch (item.status) {
     case "published":
       return item.externalUrl
-        ? { status: "published", label: "Published", detail: "This post is on TikTok.", tone: "success" }
-        : { status: "waiting", ...WAITING };
-    case "needs_action":
-      return { status: "waiting", ...WAITING };
+        ? { status: "published", label: "Published", detail: "This post is on TikTok.", tone: "success", action: null }
+        : { status: "published", label: "Published, link coming", detail: "TikTok has the post. The link will show here soon.", tone: "success", action: null };
+    case "in_flight":
+      return { status: "sending", label: "Sending…", detail: "Your post is being sent to TikTok.", tone: "info", action: null };
+    case "awaiting_retry":
+      return { status: "retrying", label: "Retrying", detail: "TikTok did not take it yet. We will try again shortly.", tone: "warning", action: null };
+    case "needs_action": {
+      const code = lastErrorCode(item);
+      if (code === COMING_SOON_CODE) {
+        return {
+          status: "waiting",
+          label: "Waiting for TikTok approval",
+          detail: "Your post is saved. It will publish once TikTok approves Peakhour.",
+          tone: "warning",
+          action: null,
+        };
+      }
+      if (code === PRIVACY_REQUIRED_CODE) {
+        return { status: "choose_privacy", label: "Choose who can watch it", detail: "TikTok needs to know who can see this post.", tone: "warning", action: "open" };
+      }
+      return { status: "attention", label: "Needs attention", detail: "TikTok needs something from you before this can go out.", tone: "warning", action: null };
+    }
     case "failed":
-      return { status: "failed", label: "Not posted", detail: "TikTok did not take this post. Nothing was published.", tone: "destructive" };
+      return { status: "failed", label: "Not posted", detail: "TikTok did not take this post. Nothing was published.", tone: "destructive", action: null };
     case "cancelled":
     case "skipped":
-      return { status: "cancelled", label: "Cancelled", detail: "This post was cancelled and will not go out.", tone: "neutral" };
+      return { status: "cancelled", label: "Cancelled", detail: "This post was cancelled and will not go out.", tone: "neutral", action: null };
     default:
-      return requested
-        ? { status: "waiting", ...WAITING }
-        : { status: "approved", label: "Approved", detail: "Approved by you. Open it to choose how it posts.", tone: "info" };
+      return { status: "approved", label: "Approved", detail: "Approved by you. Open it to choose how it posts.", tone: "info", action: "post" };
   }
 }
 
-// -- "Post" requests, remembered for this browser tab -------------------------------------------------
-
-const REQUESTED_KEY = "ph:tiktok-post-requested";
-
-/** The ids of items whose Post button was pressed. sessionStorage can throw or be absent (private window): then nothing is remembered. */
-export function readPostRequests(): Set<string> {
-  try {
-    const raw = globalThis.sessionStorage?.getItem(REQUESTED_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function rememberPostRequest(itemId: string): void {
-  try {
-    const next = readPostRequests();
-    next.add(itemId);
-    globalThis.sessionStorage?.setItem(REQUESTED_KEY, JSON.stringify([...next]));
-  } catch {
-    /* nothing to remember it in; the sheet still answered */
-  }
-}
-
-/** Where "Post to TikTok" lives for an item: the channel page opens the sheet on `?post=<id>`. */
+/** Where a link to an item lands: the channel page opens the sheet on `?post=<id>`. */
 export function tiktokPostHref(itemId: string): string {
   return `${TIKTOK_PATH}?post=${encodeURIComponent(itemId)}`;
-}
-
-/** A video is any file that says so. Photo posts have no Duet or Stitch, and the sheet hides them. */
-export function isVideoPayload(mediaUrls: string[] | undefined): boolean {
-  const first = mediaUrls?.[0];
-  return typeof first === "string" && /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(first);
 }
