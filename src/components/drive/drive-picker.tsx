@@ -131,6 +131,7 @@ const factsOf = (f: DriveFile) => ({
   ...(f.width ? { width: f.width } : {}),
   ...(f.height ? { height: f.height } : {}),
   ...(f.durationSeconds !== undefined ? { durationSeconds: f.durationSeconds } : {}),
+  ...(f.pageCount !== undefined ? { pageCount: f.pageCount } : {}),
 });
 
 export function DrivePickerPanel({

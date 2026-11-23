@@ -13,7 +13,7 @@ import { adapterChannel } from "@/lib/drive/fit";
 export type AdPlacement = "meta_ad_image" | "google_ad_landscape" | "google_ad_square" | "google_ad_logo" | "google_demand_gen_logo";
 
 export type MediaDestination =
-  | { kind: "post"; channel: string }
+  | { kind: "post"; channel: string; /** The video is being made as a Reel: the channel's Reel rule judges it, where it has one. */ as?: "reel" }
   | { kind: "presence"; channel: string }
   | { kind: "message"; channel: "whatsapp" }
   | { kind: "ad"; placement: AdPlacement }
@@ -31,8 +31,11 @@ export interface KindRule {
   aspect?: { min: number; max: number };
   minSeconds?: number;
   maxSeconds?: number;
-  /** VIDEO only: a video is refused unless it is the only attachment (an Instagram Reel). */
+  /** VIDEO and DOCUMENT: refused unless it is the only attachment (an Instagram Reel, a LinkedIn PDF carousel). */
   mustBeAlone?: boolean;
+  /** DOCUMENT only: the fewest and the most pages. A file whose pages are not known is not refused for them. */
+  minPages?: number;
+  maxPages?: number;
 }
 
 export interface MediaRule {
@@ -43,6 +46,8 @@ export interface MediaRule {
   maxCount?: number;
   image?: KindRule;
   video?: KindRule;
+  /** Post rows only: the video judged as a short vertical Reel, where the channel has a rule for that (Facebook). Used when the destination says `as: "reel"`. */
+  reel?: KindRule;
   document?: KindRule;
   /** Post rows only: present when the channel's API lets Peakhour add a first comment after the post is live. */
   firstComment?: { maxLength: number };
@@ -82,14 +87,19 @@ export function useMediaRules() {
   return useQuery({ queryKey: MEDIA_RULES_KEY, queryFn: fetchMediaRules, staleTime: 10 * 60_000, gcTime: 60 * 60_000 });
 }
 
+/** The row as this destination reads it: a post made as a Reel is judged by the channel's Reel rule where there is one, else by its video rule. */
+export function ruleForDestination(row: MediaRule, d: MediaDestination): MediaRule {
+  return d.kind === "post" && d.as === "reel" && row.reel ? { ...row, video: row.reel } : row;
+}
+
 export type RuleState = { state: "loading" } | { state: "failed"; retry: () => void } | { state: "unknown" } | { state: "ready"; rule: MediaRule };
 
 /** The row for one destination: ready, still loading, failed (retry offered), or a destination the api has no row for. */
 export function useMediaRule(d: MediaDestination): RuleState {
   const q = useMediaRules();
   if (q.data) {
-    const rule = q.data.find((r) => r.key === destinationKey(d));
-    return rule ? { state: "ready", rule } : { state: "unknown" };
+    const row = q.data.find((r) => r.key === destinationKey(d));
+    return row ? { state: "ready", rule: ruleForDestination(row, d) } : { state: "unknown" };
   }
   if (q.isError) return { state: "failed", retry: () => void q.refetch() };
   return { state: "loading" };
@@ -104,6 +114,8 @@ export interface FileFacts {
   width?: number;
   height?: number;
   durationSeconds?: number;
+  /** A document's pages, when they could be read. */
+  pageCount?: number;
 }
 
 export type Verdict =
@@ -167,6 +179,7 @@ export function takesLine(rule: MediaRule): string {
     const bits = [listOf(r.formats)];
     if (r.maxBytes !== undefined) bits.push(`up to ${mb(r.maxBytes)}`);
     if (k === "video" && r.maxSeconds !== undefined) bits.push(`${r.maxSeconds >= 120 ? `${Math.round(r.maxSeconds / 60)} minutes` : `${r.maxSeconds} seconds`} at most`);
+    if (k === "document" && r.maxPages !== undefined) bits.push(`${r.maxPages} pages at most`);
     parts.push(`${k === "image" ? "" : k === "video" ? "Videos: " : "Documents: "}${bits.join(", ")}`);
   }
   return parts.join(". ");
@@ -218,7 +231,14 @@ export function judgeFile(rule: MediaRule, f: FileFacts): Verdict {
       if (spec.minSeconds !== undefined && f.durationSeconds < spec.minSeconds) return { state: "refused", reason: `${cap(where)} needs a video of at least ${spec.minSeconds} seconds.` };
     }
   }
-  return unknown ? { state: "unchecked", reason: "Its size or length is not known yet, so the limits are not fully checked." } : { state: "fits" };
+  if (spec.minPages !== undefined || spec.maxPages !== undefined) {
+    if (f.pageCount === undefined) unknown = true;
+    else {
+      if (spec.maxPages !== undefined && f.pageCount > spec.maxPages) return { state: "refused", reason: `${cap(where)} takes documents up to ${spec.maxPages} pages; this one has ${f.pageCount}.` };
+      if (spec.minPages !== undefined && f.pageCount < spec.minPages) return { state: "refused", reason: `${cap(where)} needs a document of at least ${spec.minPages} page${spec.minPages === 1 ? "" : "s"}.` };
+    }
+  }
+  return unknown ? { state: "unchecked", reason: "Its size, length or page count is not known yet, so the limits are not fully checked." } : { state: "fits" };
 }
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -232,6 +252,7 @@ export function aloneProblem(rule: MediaRule, files: readonly FileFacts[], attac
   if (files.length + attached <= 1) return null;
   if (rule.image?.gifMustBeAlone && files.some((f) => f.mimeType === "image/gif")) return `A GIF has to be the only picture in ${rule.label}.`;
   if (rule.video?.mustBeAlone && files.some((f) => f.mimeType.startsWith("video/"))) return `A video has to be the only item in ${rule.label}.`;
+  if (rule.document?.mustBeAlone && files.some((f) => kindOfMime(f.mimeType) === "document")) return `A document has to be the only item in ${rule.label}.`;
   return null;
 }
 

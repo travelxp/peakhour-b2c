@@ -20,6 +20,9 @@ export interface InitiateRequest {
   visibility?: MediaVisibility;
   width?: number;
   height?: number;
+  /** A video's length and a document's pages, as the browser measured them. */
+  durationSeconds?: number;
+  pageCount?: number;
 }
 
 export type InitiateResponse =

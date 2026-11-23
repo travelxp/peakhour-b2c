@@ -27,9 +27,45 @@ export function posterTime(durationSeconds: number): number {
 
 const ABSENT = {};
 
-/** Width and height of an image file. A file that is not a readable image (or not an image) answers nothing. */
-export async function probeDimensions(file: File): Promise<{ width?: number; height?: number }> {
+/** What the browser can say of a file before it is sent: a picture's or video's shape, a video's length, a PDF's pages. Each is absent when it cannot be read. */
+export interface FileMeasure {
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  pageCount?: number;
+}
+
+/**
+ * Pages in a PDF, read from its bytes with no library: the page tree's root says how many pages it has in `/Count`, and every node below it says
+ * fewer, so the LARGEST `/Count` is the document's. A PDF that keeps its page tree inside a compressed object stream (PDF 1.5 and later, often) shows
+ * no `/Count` in the clear: nothing is said then, and the limit is simply not checked (the verdict is "not fully checked", never a refusal). Pure.
+ */
+export function pdfPageCountOf(text: string): number | undefined {
+  let best = 0;
+  for (const m of text.matchAll(/\/Count\s+(\d{1,6})\b/g)) best = Math.max(best, Number(m[1]));
+  return best >= 1 ? best : undefined;
+}
+
+/** The biggest PDF the browser reads for its pages (a larger one is not read, and its pages are not checked). LinkedIn's own limit is 100 MB. */
+export const PDF_PROBE_MAX_BYTES = 100 * 1024 * 1024;
+
+/** A PDF's page count, or nothing. */
+export async function probePdfPages(file: File): Promise<number | undefined> {
+  if (typeof window === "undefined" || file.type !== "application/pdf" || file.size > PDF_PROBE_MAX_BYTES) return undefined;
+  try {
+    return pdfPageCountOf(new TextDecoder("latin1").decode(await file.arrayBuffer()));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Width and height of an image file; width, height and length of a video; pages of a PDF. A file that is not readable answers nothing. */
+export async function probeDimensions(file: File): Promise<FileMeasure> {
   if (typeof window === "undefined") return ABSENT;
+  if (file.type === "application/pdf") {
+    const pageCount = await probePdfPages(file);
+    return pageCount !== undefined ? { pageCount } : ABSENT;
+  }
   if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
     try {
       const bmp = await createImageBitmap(file);
@@ -43,7 +79,8 @@ export async function probeDimensions(file: File): Promise<{ width?: number; hei
   if (file.type.startsWith("video/")) {
     const v = await loadVideo(file).catch(() => null);
     if (!v) return ABSENT;
-    const out = { width: v.video.videoWidth, height: v.video.videoHeight };
+    const d = v.video.duration;
+    const out = { width: v.video.videoWidth, height: v.video.videoHeight, ...(Number.isFinite(d) && d > 0 ? { durationSeconds: d } : {}) };
     v.dispose();
     return out.width > 0 ? out : ABSENT;
   }

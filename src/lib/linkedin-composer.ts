@@ -106,6 +106,20 @@ export interface ComposerGateInput {
   anyPending: boolean;
   /** Result of the url check on `linkUrl`. */
   linkLooksLikeUrl: boolean;
+  /** A video or a document is on the post: LinkedIn processes it for a while, so it goes out through Schedule, never the instant Publish. */
+  heavyMedia?: boolean;
+}
+
+/** Whether any attached file is a video or a document (a picture is the only kind the instant Publish sends). */
+export function hasHeavyMedia(mimes: readonly string[]): boolean {
+  return mimes.some((m) => m.startsWith("video/") || m === "application/pdf");
+}
+
+/** What the scheduler is told the attachment is, so the publisher takes its video or document flow even when the address has no file ending. */
+export function scheduleMediaType(mimes: readonly string[]): "VIDEO" | "DOCUMENT" | undefined {
+  if (mimes.some((m) => m.startsWith("video/"))) return "VIDEO";
+  if (mimes.some((m) => m === "application/pdf")) return "DOCUMENT";
+  return undefined;
 }
 
 export interface ComposerGates {
@@ -127,7 +141,7 @@ export function composerGates(i: ComposerGateInput): ComposerGates {
   // A poll, when active, must be complete before publish. The commentary
   // (text) is still required — it shows above the poll.
   const pollOk = !i.pollActive || i.pollValid;
-  const publishDisabled = empty || tooLong || i.anyPending || linkInvalid || !pollOk;
+  const publishDisabled = empty || tooLong || i.anyPending || linkInvalid || !pollOk || i.heavyMedia === true;
   // Scheduling + carousel don't carry a poll, so they're unavailable while a
   // poll is active.
   const scheduleDisabled = empty || tooLong || linkInvalid || i.pollActive;
@@ -229,6 +243,8 @@ export interface ScheduleChannelInput {
   text: string;
   /** Public links of the pictures on the post. */
   mediaUrls?: string[];
+  /** The types of the attached files (a video or a PDF is posted by its own flow). */
+  mediaMimes?: string[];
 }
 
 /**
@@ -254,6 +270,8 @@ export function buildScheduleChannels(i: ScheduleChannelInput) {
       ...(i.linkTitle.trim() ? { title: i.linkTitle.trim() } : {}),
     };
   }
+  const mediaType = scheduleMediaType(i.mediaMimes ?? []);
+  if (mediaType && i.mediaUrls && i.mediaUrls.length > 0) channelOptions.mediaType = mediaType;
   return [
     {
       channel: "linkedin",

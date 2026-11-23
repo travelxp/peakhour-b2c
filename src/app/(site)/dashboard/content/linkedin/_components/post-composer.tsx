@@ -21,6 +21,7 @@ import {
   buildPublishBody,
   buildScheduleChannels,
   composerGates,
+  hasHeavyMedia,
   effectiveVisibilityFor,
   isOrgAuthorKey,
   postAttachments,
@@ -344,6 +345,7 @@ export function PostComposer({ identity, seedText }: Props) {
     pollValid: poll !== null && isPollValid(poll),
     anyPending,
     linkLooksLikeUrl: isProbablyUrl(linkUrl),
+    heavyMedia: hasHeavyMedia(postMedia.media.map((m) => m.mime)),
   });
 
   function onSubmit() {
@@ -540,8 +542,9 @@ export function PostComposer({ identity, seedText }: Props) {
         linkTitle,
         text,
         mediaUrls: postMedia.urls,
+        mediaMimes: postMedia.media.map((m) => m.mime),
       }),
-    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text, postMedia.urls],
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text, postMedia.urls, postMedia.media],
   );
 
   function handleScheduled() {
@@ -749,6 +752,11 @@ export function PostComposer({ identity, seedText }: Props) {
       )}
 
       <PostMedia state={postMedia} locked={publish.isPending || !attachments.canAddPictures} />
+      {hasHeavyMedia(postMedia.media.map((m) => m.mime)) ? (
+        <p role="status" data-testid="linkedin-heavy-media-note" className="text-xs text-muted-foreground">
+          A video or a document takes LinkedIn a little while to process, so it goes out through Schedule: pick a time a few minutes from now.
+        </p>
+      ) : null}
 
       {poll && (
         <PollEditor value={poll} onChange={setPoll} onRemove={() => setPoll(null)} />
