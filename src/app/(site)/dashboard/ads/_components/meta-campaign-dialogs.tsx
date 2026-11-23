@@ -40,8 +40,10 @@ import {
   type MetaAdAccount,
   type MetaAdSet,
   type MetaAdSetEdit,
+  type MetaAdsPage,
   type MetaCampaign,
   type MetaCampaignEdit,
+  type MetaPagePost,
 } from "@/lib/api/meta-ads";
 import { adImageUploadFailure, metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
 import {
@@ -111,6 +113,9 @@ export function NewCampaignDialog({
   accounts,
   defaultAccountId,
   initialAccountId,
+  businessId,
+  promote,
+  onPromoteClose,
   onCreated,
 }: {
   /** The business's enabled ad accounts: never empty (the caller renders no dialog without one). */
@@ -119,6 +124,11 @@ export function NewCampaignDialog({
   defaultAccountId: string | null;
   /** The account the campaigns list is filtered to, when it is filtered to one. */
   initialAccountId?: string | null;
+  /** The business, so another business's Pages are never served for this one. */
+  businessId?: string;
+  /** "Promote a post": opens the dialog with this existing post, from this Page, as the ad. Closing it calls `onPromoteClose`. */
+  promote?: { pageId: string; post: MetaPagePost } | null;
+  onPromoteClose?: () => void;
   /** The new campaign's id and the account it was created in, so the list can open it. */
   onCreated: (campaignId: string, accountId: string) => void;
 }) {
@@ -129,22 +139,42 @@ export function NewCampaignDialog({
     accounts.find((a) => a.id === defaultAccountId) ??
     accounts[0]!;
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
+  const [ownOpen, setOpen] = useState(false);
+  const open = ownOpen || Boolean(promote);
+  const closeDialog = () => {
+    setOpen(false);
+    onPromoteClose?.();
+  };
+  const [baseForm, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
+  // A promoted post is the ad itself: it rides on the form so validation and the bodies read one thing.
+  const form: NewCampaignForm = promote
+    ? { ...baseForm, promotedPost: { id: promote.post.id, message: promote.post.message, pictureUrl: promote.post.pictureUrl } }
+    : baseForm;
   const [showErrors, setShowErrors] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   // ★ONE UPLOAD PER FILE: Meta's library is content-addressed, so a retry after a failed launch reuses the hash
   // instead of putting a duplicate in the merchant's account.
   const uploaded = useRef<{ key: string; hash: string } | null>(null);
 
-  const page = useQuery({
-    queryKey: ["meta-ads-page"],
-    queryFn: () => metaAdsApi.getPage(),
+  // ★THE PAGE IS A CHOICE AMONG THE PAGES THE ADS LOGIN CAN ADVERTISE FOR. Default: the post's Page when promoting, else the
+  // business's saved Page, else the only one there is. A Page without the advertise permission is shown, disabled, with why.
+  const pages = useQuery({
+    queryKey: ["meta-ads-pages", businessId ?? "none"],
+    queryFn: () => metaAdsApi.listPages(),
     enabled: open,
     retry: false,
     staleTime: 60_000,
   });
-  const pageRow = page.data?.page ?? null;
+  const [pickedPageId, setPickedPageId] = useState<string | null>(null);
+  const pageList = pages.data?.pages ?? [];
+  const usable = pageList.filter((p) => p.canAdvertise);
+  // ★A PROMOTED POST'S PAGE IS NOT A DEFAULT: if that Page cannot be advertised for, there is no Page, never the saved one.
+  const pageRow: MetaAdsPage | null = promote
+    ? (usable.find((p) => p.id === promote.pageId) ?? null)
+    : (usable.find((p) => p.id === pickedPageId) ??
+      usable.find((p) => p.id === pages.data?.savedPageId) ??
+      (usable.length === 1 ? usable[0]! : null));
+  const promoteBlocked = Boolean(promote) && pages.isSuccess && !pageRow;
 
   const errors = validateNewCampaign(form, account.currency);
   const set = <K extends keyof NewCampaignForm>(key: K, value: NewCampaignForm[K]) =>
@@ -159,6 +189,7 @@ export function NewCampaignDialog({
     setShowErrors(false);
     setFailure(null);
     setPickedAccountId(null);
+    setPickedPageId(null);
     uploaded.current = null;
   };
 
@@ -166,28 +197,33 @@ export function NewCampaignDialog({
     // ★THE ACCOUNT IS A VARIABLE, not a closure: the Select is disabled while this runs, and whatever finishes invalidates the
     // account it was STARTED for.
     mutationFn: async (account: MetaAdAccount) => {
-      if (!form.image || !pageRow) throw new Error("not ready");
-      const key = `${account.id}|${form.image.mediaId}`;
-      if (uploaded.current?.key !== key) {
-        const upload = await metaAdsApi
-          .uploadImage({ adAccountId: account.id, mediaId: form.image.mediaId })
-          .catch((err: unknown) => {
-            const why = adImageUploadFailure(err);
-            throw new UploadFailed(why.message, why.clearImage);
-          });
-        uploaded.current = { key, hash: upload.imageHash };
+      if (!pageRow || (!form.promotedPost && !form.image)) throw new Error("not ready");
+      // A promoted post has no image to upload: it is the post as it already stands on the Page.
+      let imageHash: string | undefined;
+      if (!form.promotedPost && form.image) {
+        const key = `${account.id}|${form.image.mediaId}`;
+        if (uploaded.current?.key !== key) {
+          const upload = await metaAdsApi
+            .uploadImage({ adAccountId: account.id, mediaId: form.image.mediaId })
+            .catch((err: unknown) => {
+              const why = adImageUploadFailure(err);
+              throw new UploadFailed(why.message, why.clearImage);
+            });
+          uploaded.current = { key, hash: upload.imageHash };
+        }
+        imageHash = uploaded.current.hash;
       }
       const bodies = buildCreateBodies(form, {
         adAccountId: account.id,
         currency: account.currency,
         pageId: pageRow.id,
-        imageHash: uploaded.current.hash,
+        imageHash,
       });
       return metaAdsApi.launchCampaign(bodies);
     },
     onSuccess: (made, target) => {
       for (const key of ADS_KEYS) void queryClient.invalidateQueries({ queryKey: [key, target.id] });
-      setOpen(false);
+      closeDialog();
       reset();
       toast.success("Campaign created and paused. Turn it on when you're ready.");
       onCreated(made.campaignId, target.id);
@@ -225,18 +261,21 @@ export function NewCampaignDialog({
         if (create.isPending) return;
         // A closed dialog starts clean: no old form, and no old "may be in your Meta account" warning.
         if (!next) reset();
-        setOpen(next);
+        if (next) setOpen(true);
+        else closeDialog();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="mr-1.5 size-4" />
-          New campaign
-        </Button>
-      </DialogTrigger>
+      {promote ? null : (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus className="mr-1.5 size-4" />
+            New campaign
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>New campaign</DialogTitle>
+          <DialogTitle>{promote ? "Promote this post" : "New campaign"}</DialogTitle>
           <DialogDescription>
             It starts paused, so nothing runs or costs anything until you turn it on.
           </DialogDescription>
@@ -275,6 +314,7 @@ export function NewCampaignDialog({
             <FieldError id="mc-name-err" text={shown.name} />
           </div>
 
+          {promote ? null : (
           <div className="space-y-1.5">
             <Label htmlFor="mc-goal">What do you want?</Label>
             <Select value={form.objective} onValueChange={(v) => set("objective", v as MetaCreateObjective)}>
@@ -293,6 +333,7 @@ export function NewCampaignDialog({
               {META_CREATE_OBJECTIVES.find((o) => o.value === form.objective)?.hint}
             </p>
           </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="mc-budget">Daily budget ({account.currency})</Label>
@@ -356,23 +397,63 @@ export function NewCampaignDialog({
 
           <fieldset className="space-y-3">
             <legend className="text-sm font-medium">Your ad</legend>
-            {page.isLoading ? (
+            {pages.isLoading ? (
               <Skeleton className="h-5 w-64" />
-            ) : page.isError ? (
+            ) : pages.isError ? (
               <p role="status" className="text-sm text-destructive">
-                {metaAdsErrorMessage(page.error, "Couldn't read your Facebook Page just now. Close this and try again.")}
+                {metaAdsErrorMessage(pages.error, "Couldn't read your Facebook Pages just now. Close this and try again.")}
               </p>
-            ) : pageRow ? (
-              <p className="text-sm text-muted-foreground">
-                Shown as <span className="font-medium text-foreground">{pageRow.name ?? "your saved Facebook Page"}</span>
+            ) : usable.length === 0 ? (
+              <p role="status" className="text-sm text-destructive">
+                {pageList.length === 0
+                  ? "Your Meta login has no Facebook Page, and Meta ads are shown as a Page. Connect a Page under Connected accounts, then try again."
+                  : "None of your Facebook Pages lets you run ads. Ask the Page's owner to give you permission to advertise, then try again."}
               </p>
             ) : (
-              <p role="status" className="text-sm text-destructive">
-                No Facebook Page is saved for this business, and Meta ads are shown as a Page. Choose one under
-                Connected accounts, then try again.
-              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="mc-page">Facebook Page</Label>
+                <Select
+                  value={pageRow?.id ?? ""}
+                  onValueChange={setPickedPageId}
+                  disabled={create.isPending || Boolean(promote)}
+                >
+                  <SelectTrigger id="mc-page" className="w-full" aria-label="Facebook Page">
+                    <SelectValue placeholder="Choose a Page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pageList.map((p) => (
+                      <SelectItem key={p.id} value={p.id} disabled={!p.canAdvertise}>
+                        {p.name}
+                        {p.isSaved ? " · saved" : ""}
+                        {p.canAdvertise ? "" : " · you can't run ads as this Page"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">People see the ad as coming from this Page.</p>
+                {pageRow === null && !promote ? <p className="text-xs text-destructive">Choose the Page this ad is shown as.</p> : null}
+              </div>
             )}
+            {promoteBlocked ? (
+              <p role="status" className="text-sm text-destructive">
+                You can&apos;t run ads as that Page any more. Close this and choose a Page you can advertise for.
+              </p>
+            ) : null}
 
+            {promote ? (
+              <div className="flex items-start gap-3 rounded-md border p-3" data-testid="promoted-post">
+                {promote.post.pictureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={promote.post.pictureUrl} alt="" className="size-16 shrink-0 rounded object-cover" />
+                ) : null}
+                <div className="min-w-0 space-y-1 text-sm">
+                  <p className="font-medium">The post you are promoting</p>
+                  <p className="line-clamp-3 text-muted-foreground">{promote.post.message || "A post with no text."}</p>
+                  <p className="text-xs text-muted-foreground">The ad is this post exactly as it is on your Page.</p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="space-y-1.5">
               <Label htmlFor="mc-image">Image</Label>
               <div className="flex items-center gap-3">
@@ -471,6 +552,8 @@ export function NewCampaignDialog({
                 </SelectContent>
               </Select>
             </div>
+              </>
+            )}
           </fieldset>
 
           {failure ? (
@@ -489,13 +572,13 @@ export function NewCampaignDialog({
             variant="ghost"
             onClick={() => {
               reset();
-              setOpen(false);
+              closeDialog();
             }}
             disabled={create.isPending}
           >
             Cancel
           </Button>
-          <Button onClick={submit} disabled={create.isPending || page.isLoading} aria-busy={create.isPending}>
+          <Button onClick={submit} disabled={create.isPending || pages.isLoading || promoteBlocked} aria-busy={create.isPending}>
             {create.isPending ? "Creating…" : "Create paused campaign"}
           </Button>
         </DialogFooter>
