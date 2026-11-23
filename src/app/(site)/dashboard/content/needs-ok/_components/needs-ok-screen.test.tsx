@@ -121,8 +121,8 @@ describe("NeedsOkScreen", () => {
     zone.mockRestore();
     // two different days (the month differs too), whatever the machine's language
     expect(east).not.toBe(west);
-    expect(east).toMatch(/1/);
-    expect(west).toMatch(/30/);
+    expect(east).toMatch(/(^|\D)1(\D|$)/);
+    expect(west).toMatch(/(^|\D)30(\D|$)/);
     expect(expiresOn("not a date")).toBeNull();
   });
 
