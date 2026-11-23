@@ -8,6 +8,7 @@
  */
 
 import { api } from "../api";
+import type { buildFreshRuleBody } from "../fresh-recurring";
 import type {
   CommitPlanRequest,
   CommitPlanResponse,
@@ -243,6 +244,11 @@ export const scheduler = {
       `/v1/scheduler/recurring-rules/${ruleId}/resume`,
       {},
     );
+  },
+
+  /** Create a recurring rule that writes a NEW post each time (`planTemplate.sourceType: "ai_generated"`, with the topic). The post is written ahead of time into Needs your OK. */
+  createRecurringRule(body: ReturnType<typeof buildFreshRuleBody>) {
+    return api.post<RecurringRuleDto>("/v1/scheduler/recurring-rules", body);
   },
 
   getRecurringRule(ruleId: string) {
