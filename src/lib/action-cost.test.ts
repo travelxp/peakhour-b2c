@@ -148,7 +148,8 @@ describe("the places that said 'Uses Peaks.'", () => {
     expect(read("components/composer/ai-compose-toolbar.tsx")).toContain("actionCostSentence(cost)");
     expect(read("app/(site)/dashboard/strategist/page.tsx")).toContain('<ActionCost action="contentIdeas"');
     expect(read("app/(site)/dashboard/content/linkedin/_components/composer-actions.tsx")).toContain('<ActionCost action="linkedinCarousel"');
-    expect(read("components/repurpose/repurpose-sheet.tsx")).toContain('<ActionCost action="repurpose"');
+    // The Repurpose sheet shows the api's binding quote per channel, not a rate-card line (W2-F): see repurpose-sheet.test.tsx.
+    expect(read("components/repurpose/repurpose-sheet.tsx")).toContain("useRepurposeQuote(");
     const studio = read("app/(site)/dashboard/content/whatsapp/templates/page.tsx");
     expect(studio.match(/<ActionCost action="waTemplateStudio"/g)).toHaveLength(3);
     expect(read("app/(site)/dashboard/content/x/_components/mentions-list.tsx")).toContain('<ActionCost action="xReply"');

@@ -36,10 +36,14 @@ import {
   type RepurposeResponse,
   type RepurposedAdaptation,
   type BlogDraftResult,
+  type RepurposeChannelPrice,
+  type RepurposeQuoteTokens,
 } from "@/lib/api/repurpose";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
-import { ActionCost } from "@/components/dashboard/action-cost";
+import { useRepurposeQuote } from "@/hooks/use-repurpose-quote";
+import { channelPriceText, nothingToWrite, repurposeFooterText } from "@/lib/repurpose-price";
+import { ApiError } from "@/lib/api";
 import type {
   CommitPlanRequest,
   ScheduleSourceType,
@@ -78,6 +82,9 @@ function toScheduleSourceType(s: RepurposeSource): ScheduleSourceType {
       return "idea";
     case "published_post":
       return "social_post";
+    // A live Facebook or Instagram post has no row to point at: it schedules like pasted text.
+    case "facebook_post":
+    case "instagram_media":
     case "ad_hoc":
       return "ad_hoc";
   }
@@ -93,6 +100,8 @@ function toScheduleSourceRef(s: RepurposeSource): string | undefined {
       return s.ideaId;
     case "published_post":
       return s.socialPostId;
+    case "facebook_post":
+    case "instagram_media":
     case "ad_hoc":
       return undefined;
   }
@@ -191,8 +200,8 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
   });
 
   const repurposeMutation = useMutation({
-    mutationFn: (args: { source: RepurposeSource; platforms: string[]; platformFitId: string }) =>
-      repurpose(args),
+    mutationFn: (args: { source: RepurposeSource; platforms: string[]; platformFitId: string; tokens: RepurposeQuoteTokens }) =>
+      repurpose({ source: args.source, platforms: args.platforms, platformFitId: args.platformFitId }, args.tokens),
     onSuccess: (data: RepurposeResponse) => {
       // Count BOTH social variants (soc_social_posts) and blog drafts
       // (cnt_drafts) so a blog-only repurpose isn't mis-reported as "nothing
@@ -216,6 +225,12 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to generate variants");
+      // A price the api refused (lapsed, or for other channels) is asked for again, so the merchant sees the price that will be charged. Any other
+      // failure leaves the price on screen: it was not the price's fault.
+      // (Reset, not just invalidated: the refused receipt must go, or it stays on screen and Generate sends it again while the new one loads.)
+      if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") {
+        void queryClient.resetQueries({ queryKey: ["repurpose-quote"] });
+      }
     },
   });
 
@@ -312,9 +327,22 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
                 ? "empty"
                 : "recommend";
 
+  // The price of what is ticked, asked for while the pick step is on screen and before anything is written. Generate stays off until
+  // one is in hand: nothing is run that the merchant was not shown a price for.
+  const price = useRepurposeQuote(finalPlatforms, open && stage === "recommend");
+  // Channels the api writes nothing for (a web page) are sent with the rest but are not variants: the button counts what will be written.
+  const writableCount = price.quote
+    ? finalPlatforms.filter((p) => (price.quote!.channels.find((c) => c.channel === p)?.kind ?? "none") !== "none").length
+    : finalPlatforms.length;
+  const priceByChannel = useMemo(
+    () => new Map((price.quote?.channels ?? []).map((c) => [c.channel, c])),
+    [price.quote],
+  );
+
+  // (The button is off until a price is in hand, so a press never reaches here without one.)
   function handleConfirm() {
     if (!source || !platformFitId || finalPlatforms.length === 0) return;
-    repurposeMutation.mutate({ source, platforms: finalPlatforms, platformFitId });
+    repurposeMutation.mutate({ source, platforms: finalPlatforms, platformFitId, tokens: price.tokens });
   }
 
   function handleClose() {
@@ -428,6 +456,8 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
             <RecommendationList
               recommendations={recommendations}
               selected={selected}
+              priceByChannel={priceByChannel}
+              free={price.quote?.free ?? false}
               onToggle={(channel, value) =>
                 setSelected((prev) => ({ ...prev, [channel]: value }))
               }
@@ -485,15 +515,27 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
               >
                 Cancel
               </Button>
-              <ActionCost action="repurpose" className="mr-auto self-center text-xs" />
+              <span
+                className="mr-auto self-center text-xs text-muted-foreground"
+                data-testid="repurpose-price"
+                data-price-state={price.quote ? "priced" : price.loading ? "loading" : "unavailable"}
+                aria-live="polite"
+              >
+                {repurposeFooterText(price, finalPlatforms.length)}
+                {price.unavailable && finalPlatforms.length > 0 && (
+                  <Button type="button" variant="link" size="sm" className="h-auto px-1 py-0 text-xs" onClick={price.retry}>
+                    Try again
+                  </Button>
+                )}
+              </span>
               <Button
                 type="button"
                 size="sm"
                 onClick={handleConfirm}
-                disabled={finalPlatforms.length === 0 || !platformFitId}
+                disabled={finalPlatforms.length === 0 || !platformFitId || !price.quote || nothingToWrite(price)}
               >
-                {finalPlatforms.length > 0
-                  ? `Generate ${finalPlatforms.length} variant${finalPlatforms.length === 1 ? "" : "s"}`
+                {writableCount > 0
+                  ? `Generate ${writableCount} variant${writableCount === 1 ? "" : "s"}`
                   : "Generate variants"}
               </Button>
             </>
@@ -626,10 +668,15 @@ function EmptyState({ count }: { count: number }) {
 function RecommendationList({
   recommendations,
   selected,
+  priceByChannel,
+  free,
   onToggle,
 }: {
   recommendations: PlatformRecommendation[];
   selected: Record<string, boolean>;
+  /** The api's price for each ticked channel (a channel that is not ticked has none). */
+  priceByChannel: Map<string, RepurposeChannelPrice>;
+  free: boolean;
   onToggle: (channel: string, value: boolean) => void;
 }) {
   return (
@@ -639,6 +686,7 @@ function RecommendationList({
         const isHardBlocked = (r.hardBlocks?.length ?? 0) > 0;
         const band = BAND_STYLES[r.band];
         const checked = selected[r.channel] ?? false;
+        const priceText = checked ? channelPriceText(priceByChannel.get(r.channel), free) : null;
         return (
           <li
             key={r.channel}
@@ -668,6 +716,11 @@ function RecommendationList({
                 <Badge variant="outline" className={`text-micro ${band.chip}`}>
                   {band.label}
                 </Badge>
+                {priceText && (
+                  <span className="ml-auto text-xs font-medium tabular-nums" data-testid={`repurpose-price-${r.channel}`}>
+                    {priceText}
+                  </span>
+                )}
                 {/* No raw fitScore/% — plan §4.5 keeps the score internal
                     (false precision); the band + rationale carry the signal. */}
               </div>
