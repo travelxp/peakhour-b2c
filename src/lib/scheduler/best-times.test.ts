@@ -25,4 +25,13 @@ describe("bestTimeLine", () => {
   it("names a channel as it is written", () => {
     expect(bestTimeLine(view({ channel: "x", label: "Fri 9 am", scoredPosts: 6 }))).toMatch(/^Your best time on X: Fri 9 am/);
   });
+
+  it("says whose clock it is when the composer shows another zone", () => {
+    expect(bestTimeLine(view(), "America/New_York")).toBe("Your best time on LinkedIn: Tue 7 pm (from your last 31 posts, Asia/Kolkata time)");
+    expect(bestTimeLine(view(), "Asia/Kolkata")).toBe("Your best time on LinkedIn: Tue 7 pm (from your last 31 posts)");
+  });
+
+  it("never says 'from your last 0 posts'", () => {
+    expect(bestTimeLine(view({ scoredPosts: 0 }))).toBe("Your best time on LinkedIn: Tue 7 pm");
+  });
 });

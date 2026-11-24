@@ -96,11 +96,10 @@ export function ScheduleConfirmCard({
                       : "no time resolved"}
                   </span>
                 </div>
-                {bestTimeLine(bestTimes?.[r.channel]) && (
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {bestTimeLine(bestTimes?.[r.channel])}
-                  </div>
-                )}
+                {(() => {
+                  const line = bestTimeLine(bestTimes?.[r.channel], timezone);
+                  return line ? <div className="mt-0.5 text-xs text-muted-foreground">{line}</div> : null;
+                })()}
                 {r.audit && r.audit.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {r.audit.map((note) => (

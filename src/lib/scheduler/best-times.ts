@@ -32,12 +32,15 @@ export const bestTimes = {
  * "Your best time on LinkedIn: Tue 7 pm (from your last 31 posts)", or "Typical best time on LinkedIn: 8 am" while the business has no repeat history of its own.
  * Null when there is nothing to say (a channel that keeps no best time). PURE.
  */
-export function bestTimeLine(view: BestTimeView | undefined): string | null {
+export function bestTimeLine(view: BestTimeView | undefined, composerTimezone?: string): string | null {
   if (!view || !view.label) return null;
+  // the label is on the BUSINESS's clock; when the composer shows another zone, say whose clock it is so nobody reads it in the wrong one
+  const clock = view.timezone && composerTimezone && view.timezone !== composerTimezone ? `, ${view.timezone.replace(/_/g, " ")} time` : "";
   const name = channelDisplayName(view.channel);
   if (view.source === "own") {
+    if (!Number.isInteger(view.scoredPosts) || view.scoredPosts < 1) return `Your best time on ${name}: ${view.label}${clock}`;
     const posts = view.scoredPosts === 1 ? "your last post" : `your last ${view.scoredPosts} posts`;
-    return `Your best time on ${name}: ${view.label} (from ${posts})`;
+    return `Your best time on ${name}: ${view.label} (from ${posts}${clock})`;
   }
-  return `Typical best time on ${name}: ${view.label}`;
+  return `Typical best time on ${name}: ${view.label}${clock}`;
 }
