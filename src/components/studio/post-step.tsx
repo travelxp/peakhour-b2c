@@ -292,13 +292,16 @@ export function PostStep({
   );
   const title = (handoff.data?.caption.headline || headlineFallback || STUDIO_COPY.shortlist.untitled).slice(0, 120);
 
-  const confirm = (verIds: string[], state: "scheduled" | "published") =>
-    words || verIds.length === 0
+  // Recording where it went is a courtesy after the post or the schedule: its failure never undoes either. A words option is recorded by its channels, a picture by its sizes.
+  const confirm = (verIds: string[], state: "scheduled" | "published", doneChannels: string[] = []) =>
+    (words ? doneChannels.length === 0 : verIds.length === 0)
       ? Promise.resolve(undefined)
-      : studioApi
-      .confirmHandoff(creativeId, verIds, state)
-      .catch(() => undefined)
-      .finally(() => void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] }));
+      : (words ? studioApi.confirmWordsHandoff(creativeId, words.previewId, doneChannels, state) : studioApi.confirmHandoff(creativeId, verIds, state))
+          .catch(() => undefined)
+          .finally(() => {
+            void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
+            if (words) void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
+          });
 
   const postNow = useMutation({
     mutationFn: async () => {
@@ -342,7 +345,7 @@ export function PostStep({
       void qc.invalidateQueries({ queryKey: ["scheduler:items"] });
       const ok = new Set(results.filter((r) => r.published).map((r) => r.channel));
       const verIds = versions.filter((v) => ok.has(v.channel)).map((v) => v.id);
-      if (verIds.length > 0) await confirm(verIds, "published");
+      await confirm(verIds, "published", [...ok]);
       const failed = results.filter((r) => !r.published).map((r) => channelLabel(r.channel));
       if (failed.length === 0 && results.length > 0) {
         setFailure(undefined);
@@ -388,7 +391,7 @@ export function PostStep({
       submitLabel={P.scheduleIt}
       hideListingOption
       onScheduled={(r) => {
-        void confirm(ids, "scheduled");
+        void confirm(ids, "scheduled", channels);
         const at = r.resolvedTimes[0]?.scheduledAtUtc;
         setDone({ text: P.scheduled(at ? new Date(at).toLocaleString() : "") });
       }}

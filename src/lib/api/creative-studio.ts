@@ -113,7 +113,16 @@ export interface PreviewView {
   headlineBackdrop: HeadlineBackdrop | null;
   /** Words only: the option card (headline, main text, description, button, hashtags without the #). Null on a picture. */
   words?: WordsCard | null;
+  /** Words only: where the card went once it was used (null while nowhere). Absent from an api that predates it. */
+  sent?: WordsSent | null;
   note?: string;
+}
+
+/** Where a words-only option went: the channels it was posted on, the channels it is scheduled on, and whether it was sent to Growth as an ad. */
+export interface WordsSent {
+  posted: string[];
+  scheduled: string[];
+  inAd: boolean;
 }
 
 /** One words-only option card, as the api sends it. */
@@ -264,6 +273,8 @@ export interface ShortlistItem {
   waitingLong: boolean;
   /** Words only has no final to make: its cards are not offered to Make final. Absent from an api that predates it (a picture). */
   kind?: "image" | "words";
+  /** Words only: where the option went once it was used (null while nowhere). */
+  sent?: WordsSent | null;
 }
 
 export interface ShortlistResponse {
@@ -346,6 +357,8 @@ export interface OrganicHandoff {
   media: Array<{ versionId: string; mediaId: string; url: string }>;
   caption: PostCaption;
   disclosure: string;
+  /** Words only: where this option already went (null while nowhere). */
+  sent?: WordsSent | null;
 }
 
 export interface AdHandoff {
@@ -514,6 +527,10 @@ export const studioApi = {
   /** After the person pressed Post it or Schedule it on the scheduler: records the sizes as scheduled or published. */
   confirmHandoff: (creativeId: string, versionIds: string[], state: "scheduled" | "published") =>
     api.post<{ versions: Array<{ id: string; state: string }> }>(`/v1/creative/${creativeId}/handoff/confirm`, { versionIds, state }),
+
+  /** Words only: after the scheduler took the option, records it as scheduled or posted on these channels (free). */
+  confirmWordsHandoff: (creativeId: string, previewId: string, channels: string[], state: "scheduled" | "published") =>
+    api.post<{ previews: Array<{ id: string; state: string; channels: string[] }> }>(`/v1/creative/${creativeId}/handoff/confirm`, { previewIds: [previewId], channels, state }),
 
   /** "Looks different? Tell us": free, counted for the team. */
   reportMismatch: (finalId: string, text: string | undefined) => api.post<{ ok: true }>(`/v1/creative/finals/${finalId}/report-mismatch`, text ? { text } : {}),

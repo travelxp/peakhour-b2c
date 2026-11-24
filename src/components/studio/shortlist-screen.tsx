@@ -25,6 +25,8 @@ const CHIP_TEXT: Record<ShortlistChip, string> = {
   blocked: S.chip.blocked,
   failed: S.chip.failed,
   changed: S.chip.changed,
+  posted: S.chip.posted,
+  scheduled: S.chip.scheduled,
 };
 
 /** Group rows by creative, keeping the api's order (newest heart first) for the groups and the rows in them. */

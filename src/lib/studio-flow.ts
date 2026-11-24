@@ -244,10 +244,13 @@ export function chosenForFinal<T extends { previewId: string }>(items: T[], pick
   return picked ? items.filter((i) => picked.has(i.previewId)) : items.slice(0, max);
 }
 
-export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed";
+export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed" | "posted" | "scheduled";
 
 export function shortlistChip(i: ShortlistItem): ShortlistChip {
   if (i.lapsed) return "changed";
+  // A words option that was used is not waiting any more: posted wins over scheduled (a channel may be on both while it is being posted).
+  if (i.sent && i.sent.posted.length > 0) return "posted";
+  if (i.sent && i.sent.scheduled.length > 0) return "scheduled";
   switch (i.state) {
     case "finalizing":
       return "making";

@@ -286,6 +286,12 @@ describe("the shortlist and finals", () => {
     expect(shortlistChip(item({ state: "final_failed" }))).toBe("failed");
     expect(shortlistChip(item({ state: "ready", lapsed: true }))).toBe("changed");
   });
+  it("a words option that was used is no longer waiting: posted wins over scheduled, and a heart that lapsed still says changed", () => {
+    expect(shortlistChip(item({ kind: "words", sent: { posted: [], scheduled: [], inAd: true } }))).toBe("waiting");
+    expect(shortlistChip(item({ kind: "words", sent: { posted: [], scheduled: ["linkedin"], inAd: false } }))).toBe("scheduled");
+    expect(shortlistChip(item({ kind: "words", sent: { posted: ["facebook"], scheduled: ["linkedin"], inAd: false } }))).toBe("posted");
+    expect(shortlistChip(item({ kind: "words", lapsed: true, sent: { posted: ["facebook"], scheduled: [], inAd: false } }))).toBe("changed");
+  });
   it("a final not yet started is waiting its turn", () => {
     expect(finalPhase({ state: "queued" })).toBe("waiting");
     expect(finalPhase({ state: "checking" })).toBe("checking");
