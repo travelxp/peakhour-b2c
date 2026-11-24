@@ -15,6 +15,8 @@ class FakeApiError extends Error {
 }
 const threadsApi = vi.hoisted(() => ({ profile: vi.fn(), posts: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: {}, ApiError: FakeApiError, API_BASE_URL: "https://api.example" }));
+// the advice card has its own spec (it reads the signed-in business); the hub is judged without it
+vi.mock("@/components/content/what-changed-card", () => ({ WhatChangedCard: () => null }));
 vi.mock("@/lib/api/threads", () => ({ threadsApi, THREADS_PAGE_SIZE: 10 }));
 vi.mock("@/components/compose/compose-sheet-provider", () => ({
   ComposeSheetProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

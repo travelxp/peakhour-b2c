@@ -58,6 +58,7 @@ import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { insertAtCaret } from "@/lib/composer/caret";
 import { cn } from "@/lib/utils";
+import { useBriefDraft } from "@/components/composer/use-brief-draft";
 
 const MAX_LEN = 280;
 
@@ -130,7 +131,7 @@ function mapXVoiceCard(cards: VoiceCardDoc[] | undefined): VoiceCardSummary | nu
   };
 }
 
-export function TweetComposer() {
+export function TweetComposer({ brief }: { brief?: string } = {}) {
   const queryClient = useQueryClient();
 
   // ── Thread state ────────────────────────────────────────────────
@@ -335,6 +336,8 @@ export function TweetComposer() {
     },
     [insertSnippet, updateSegment],
   );
+
+  useBriefDraft(brief, "x", handleAiAction);
 
   // No hashtag-history endpoint for X yet — surface only the inline
   // "Create #tag" affordance, gated by the X-ASCII validator.

@@ -40,6 +40,7 @@ import { buildComposerCommands } from "./composer-commands";
 import { ComposerHeader } from "./composer-header";
 import { OffBrandVoiceNotice, VoiceCardPanel } from "./composer-voice-card";
 import { CarouselPriceDialog } from "./carousel-price-dialog";
+import { useBriefDraft } from "@/components/composer/use-brief-draft";
 
 // Interaction-gated pieces: each mounts only after the user opens it.
 const CarouselPreviewDialog = dynamic(() => import("./carousel-preview-dialog").then((m) => m.CarouselPreviewDialog), { ssr: false });
@@ -57,6 +58,8 @@ interface Props {
    *  string don't blow away user edits. Empty/undefined values are
    *  ignored entirely. */
   seedText?: string;
+  /** A brief to write the first draft from when the composer opens (see `useBriefDraft`). */
+  brief?: string;
 }
 
 /** Compose vs. schedule view of the same composer. "schedule" mounts
@@ -64,7 +67,7 @@ interface Props {
  *  is the default editing surface. */
 type ComposerMode = "compose" | "schedule";
 
-export function PostComposer({ identity, seedText }: Props) {
+export function PostComposer({ identity, seedText, brief }: Props) {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [caret, setCaret] = useState(0);
@@ -471,6 +474,8 @@ export function PostComposer({ identity, seedText }: Props) {
     },
     [insertSnippet, pruneMentions],
   );
+
+  useBriefDraft(brief, "linkedin", handleAiAction);
 
   // No-op hashtag search — LinkedIn has no hashtag-history endpoint yet,
   // so the typeahead surfaces only the inline "Create #tag" affordance.

@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { NewPostButton } from "@/components/compose/new-post-button";
+import { WhatChangedCard } from "@/components/content/what-changed-card";
 import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { MessageCircle, Send, Inbox, MessageSquare, RefreshCw } from "lucide-react";
 import { xApi, type XTweet } from "@/lib/api/x";
@@ -294,7 +295,10 @@ function XPageShell({ children, loading }: { children?: React.ReactNode; loading
           <Skeleton className="h-64 w-full" />
         </div>
       ) : (
-        children
+        <>
+          <WhatChangedCard channel="x" />
+          {children}
+        </>
       )}
       </ComposeSheetProvider>
     </PageShell>

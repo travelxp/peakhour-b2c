@@ -294,6 +294,13 @@ describe("metaInsightActions", () => {
     expect(run({}, {}, 1)).toEqual([]);
     expect(run({}, {}, null)).toEqual([]);
   });
+  it("every line implies an action, so every line carries a brief for Draft this post, in the channel's own name", () => {
+    const lines = run({ mediaViews: 10_000, postEngagements: 10 }, { mediaViews: 100, postEngagements: 100 }, 0);
+    expect(lines.map((l) => l.id)).toEqual(["reach_up", "engagement_down", "quiet"]);
+    for (const l of lines) expect(l.draft).toMatch(/^Write a Facebook post\. /);
+    const ig = run({ reach: 10_000 }, { reach: 100 }, 3, "instagram");
+    expect(ig[0]!.draft).toMatch(/^Write an Instagram post\. /);
+  });
   it("orders improving, declining, attention", () => {
     const lines = run({ mediaViews: 10_000, postEngagements: 10 }, { mediaViews: 100, postEngagements: 100 }, 0);
     expect(lines.map((l) => l.group)).toEqual(["improving", "declining", "attention"]);
