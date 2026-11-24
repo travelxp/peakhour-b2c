@@ -7,8 +7,8 @@ import { ExternalLink, FileText, MessageSquare, RefreshCw, Share2, Unplug } from
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import { NewPostButton } from "@/components/compose/new-post-button";
-import { DraftThisPostButton } from "@/components/compose/draft-this-post-button";
 import { WhatChangedCard } from "@/components/content/what-changed-card";
+import type { WhatChangedLine } from "@/lib/api/what-changed";
 import dynamic from "next/dynamic";
 
 // Its own chunk, like the compose sheet: the Repurpose sheet and its writers' price hooks are not part of the hub's first-load JS
@@ -51,7 +51,6 @@ import {
   tileChange,
   windowFor,
   type InsightDays,
-  type MetaInsightLine,
   type Tile,
 } from "@/lib/meta-content-view";
 
@@ -297,34 +296,6 @@ function TileGrid({ tiles, previous, days = 28 }: { tiles: Tile[]; previous?: Ti
   );
 }
 
-const GROUP_TITLE: Record<MetaInsightLine["group"], string> = {
-  improving: "Improving",
-  declining: "Declining",
-  attention: "Needs attention",
-};
-
-function WhatChanged({ lines, channel }: { lines: MetaInsightLine[]; channel: MetaHubChannel }) {
-  if (lines.length === 0) return null;
-  return (
-    <Card>
-      <CardContent className="space-y-2 p-4">
-        <h3 className="text-sm font-semibold">What changed</h3>
-        <ul className="space-y-1.5">
-          {lines.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 flex-1">
-                <span className="font-medium">{GROUP_TITLE[l.group]}: </span>
-                {l.text}
-              </span>
-              <DraftThisPostButton channel={channel} brief={l.draft} />
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ErrorLine({ error, what, reconnect }: { error: unknown; what: string; reconnect: string }) {
   const code = error instanceof ApiError ? error.code : "";
   if (code === "NEEDS_REAUTH") {
@@ -380,16 +351,16 @@ function Overview({
     retry: false,
   });
   const postsQ = usePosts(channel, subjectId);
-  const lines =
-    q.data
-      ? metaInsightActions({
-          channel,
-          days,
-          current: q.data,
-          previous: prevQ.data,
-          recentPosts: postsQ.data ? countRecentPosts(postsQ.data.map((r) => r.date)) : null,
-        })
-      : [];
+  // The account's own trends go into the same card as the post results (one "What changed" per page), each with its "Draft this post" button.
+  const lines: WhatChangedLine[] = q.data
+    ? metaInsightActions({
+        channel,
+        days,
+        current: q.data,
+        previous: prevQ.data,
+        recentPosts: postsQ.data ? countRecentPosts(postsQ.data.map((r) => r.date)) : null,
+      }).map((l) => ({ id: l.id, group: l.group, text: l.text, draft: { channel, brief: l.draft } }))
+    : [];
 
   return (
     <div className="space-y-3">
@@ -400,7 +371,7 @@ function Overview({
           </Button>
         ))}
       </div>
-      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <><WhatChanged lines={lines} channel={channel} /><WhatChangedCard channel={channel} /><TileGrid tiles={q.data!} previous={prevQ.data} days={days} /></>}
+      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <><WhatChangedCard channel={channel} accountLines={lines} /><TileGrid tiles={q.data!} previous={prevQ.data} days={days} /></>}
     </div>
   );
 }

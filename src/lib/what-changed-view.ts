@@ -1,5 +1,5 @@
 import { actionCostShort, type ActionCost } from "@/lib/action-cost";
-import type { ChannelWhatChanged } from "@/lib/api/what-changed";
+import type { ChannelWhatChanged, WhatChangedLine } from "@/lib/api/what-changed";
 
 /**
  * Words and rules for "What changed in your posts" and its "Draft this post" button, kept out of the components so they can be tested.
@@ -42,3 +42,16 @@ export const GROUP_TITLE: Record<"improving" | "declining" | "attention", string
   declining: "Declining",
   attention: "Needs attention",
 };
+
+/**
+ * ONE card on the Facebook and Instagram pages: the account's own trends (reach, engagement, a quiet account) first, then the post-results lines.
+ * The two sources can say the same thing, and a statement is made once: the post-results "has not posted" line is dropped when the account side already
+ * says the account is quiet or tells it to post more often (a fall that advises a different kind of post says nothing about how often).
+ */
+export function joinWhatChanged(account: WhatChangedLine[], results: WhatChangedLine[]): { key: string; line: WhatChangedLine }[] {
+  const accountSaysQuiet = account.some((l) => l.id === "quiet" || (l.id === "reach_down" && /post more often/.test(l.text)));
+  return [
+    ...account.map((line) => ({ key: `account-${line.id}`, line })),
+    ...results.filter((l) => !(accountSaysQuiet && l.id === "quiet")).map((line) => ({ key: `posts-${line.id}`, line })),
+  ];
+}
