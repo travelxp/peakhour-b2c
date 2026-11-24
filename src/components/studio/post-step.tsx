@@ -17,7 +17,7 @@ import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { adPlatformLabel, adPlatformOf, captionLength, captionProblem, channelByKey, channelLabel, mediaFor } from "@/lib/studio-publish";
+import { adPlatformLabel, adPlatformOf, captionLength, captionProblem, channelByKey, channelLabel, mediaFor, shortenedLines } from "@/lib/studio-publish";
 import { cn } from "@/lib/utils";
 
 const P = STUDIO_COPY.post;
@@ -50,7 +50,7 @@ export interface PostStepViewProps {
   onBack: () => void;
   onUseInAd: () => void;
   adPending: boolean;
-  adNote?: { text: string; growthHref: string };
+  adNote?: { text: string; growthHref: string; shortened?: string[] };
   adError?: string;
   onSaveForLater: () => void;
   done?: { text: string };
@@ -215,6 +215,11 @@ export function PostStepView(p: PostStepViewProps) {
         {p.adNote && (
           <div role="status" className="space-y-2 text-sm">
             <p>{p.adNote.text}</p>
+            {p.adNote.shortened?.map((line) => (
+              <p key={line} data-slot="studio-post-shortened">
+                {line}
+              </p>
+            ))}
             <Button asChild size="sm" variant="outline" className="h-11">
               <Link href={p.adNote.growthHref}>{P.openGrowth}</Link>
             </Button>
@@ -269,7 +274,7 @@ export function PostStep({
   const [when, setWhen] = useState<PostWhen>("now");
   const [done, setDone] = useState<{ text: string } | undefined>();
   const [failure, setFailure] = useState<string | undefined>();
-  const [adNote, setAdNote] = useState<{ text: string; growthHref: string } | undefined>();
+  const [adNote, setAdNote] = useState<{ text: string; growthHref: string; shortened?: string[] } | undefined>();
   const [adError, setAdError] = useState<string | undefined>();
   // One plan per press of Post it: a retry after a failed send re-sends the plan that exists instead of committing a second one.
   const planRef = useRef<{ planId: string; hash: string } | null>(null);
@@ -372,14 +377,17 @@ export function PostStep({
       const ok = made.flatMap((m) => (m.status === "fulfilled" ? m.value.adCreatives : []));
       const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
       if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");
-      return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "" } satisfies AdHandoff;
+      // The words were written once; going to a platform with tighter limits they are cut (free, no new call) and the merchant is told what was shortened.
+      const shortened = made.flatMap((m) => (m.status === "fulfilled" && m.value.shortened?.length ? [{ platform: m.value.adCreatives[0]?.platform ?? "", parts: m.value.shortened }] : []));
+      return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "", shortenedFor: shortened } satisfies AdHandoff & { shortenedFor: Array<{ platform: string; parts: string[] }> };
     },
-    onSuccess: (r: AdHandoff) => {
+    onSuccess: (r: AdHandoff & { shortenedFor?: Array<{ platform: string; parts: string[] }> }) => {
       // A channel the Ad Engine does not run is said, never left out silently.
       const missing = words ? words.channels.filter((c) => !r.adCreatives.some((a) => a.platform === adPlatformOf(c))) : [];
       setAdError(missing.length > 0 ? P.adNotFor(missing.map(channelLabel).join(", ")) : undefined);
       const names = r.adCreatives.length > 1 ? r.adCreatives.map((a) => adPlatformLabel(a.platform)).join(", ") : "";
-      setAdNote({ text: r.adCreatives.length > 1 ? P.adAddedFor(names) : P.adAdded, growthHref: "/dashboard/ads" });
+      const shortened = shortenedLines(r.shortenedFor ?? []);
+      setAdNote({ text: r.adCreatives.length > 1 ? P.adAddedFor(names) : P.adAdded, growthHref: "/dashboard/ads", ...(shortened.length > 0 ? { shortened } : {}) });
     },
     onError: (e) => setAdError(apiMessage(e, STUDIO_COPY.refusal.wentWrong)),
   });

@@ -9,6 +9,7 @@ import {
   extendCount,
   keysToExtend,
   keysToRender,
+  shortenedLines,
   makeSizes,
   mediaFor,
   parseCap,
@@ -214,5 +215,17 @@ describe("the monthly limit as typed (S19)", () => {
   it("refuses more than the api keeps", () => {
     expect(parseCap("10000001")).toEqual({ ok: false, reason: "too_big" });
     expect(parseCap("10000000")).toEqual({ ok: true, value: 10_000_000 });
+  });
+});
+
+describe("what a cut says (words written for one platform, sent to an ad on another)", () => {
+  it("names the parts in plain words, once per platform that cut something, and says nothing where the words fitted", () => {
+    expect(shortenedLines([{ platform: "linkedin", parts: ["headline", "primaryText"] }])).toEqual(["We shortened the headline and main text to fit LinkedIn."]);
+    expect(shortenedLines([{ platform: "meta", parts: ["hashtags"] }, { platform: "x", parts: [] }, { platform: "google_ads", parts: ["headline", "description", "cta"] }])).toEqual([
+      "We shortened the hashtags to fit Facebook and Instagram.",
+      "We shortened the headline, description and button to fit Google.",
+    ]);
+    expect(shortenedLines([])).toEqual([]);
+    expect(shortenedLines([{ platform: "tiktok", parts: ["somethingNew"] }])).toEqual(["We shortened the somethingNew to fit TikTok."]);
   });
 });

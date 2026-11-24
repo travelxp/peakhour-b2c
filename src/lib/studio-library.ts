@@ -28,13 +28,22 @@ export function importLines(imports: ProductImportStatus[], locale?: string): Im
  * The state chip on a creative in the Library. What the list can truthfully say: a saved plan, an archived one, or (from the handoff records) scheduled or
  * posted; anything else with a final is plain "Final".
  */
-export function chipFor(item: Pick<LibraryItem, "status"> & Partial<Pick<LibraryItem, "publish">>, view: "made" | "plans"): string {
+export function chipFor(item: Pick<LibraryItem, "status"> & Partial<Pick<LibraryItem, "publish" | "kind">>, view: "made" | "plans"): string {
   const c = STUDIO_COPY.library.chips;
   if (view === "plans") return c.plan;
   if (item.status === "archived") return c.archived;
   if (item.publish?.state === "scheduled") return c.scheduled;
   if (item.publish?.state === "posted") return c.posted;
-  return c.final;
+  // words are never a "final" (there is no picture to make final): approved is where they stand until they are sent
+  return item.kind === "words" ? c.words : c.final;
+}
+
+/** The line under a tile's title: a picture's shape, or for words what is in the set (options and how many are approved) and the platform they were written for. */
+export function subLine(item: Pick<LibraryItem, "kind" | "format" | "words">, formatLabel: string, platformName: (key: string) => string): string {
+  if (item.kind !== "words") return formatLabel;
+  const C = STUDIO_COPY.library;
+  const count = item.words ? C.wordsCount(item.words.options, item.words.approved) : C.wordsKind;
+  return item.words?.platform ? `${count}. ${C.wordsForPlatform(platformName(item.words.platform))}` : count;
 }
 
 /** The channels of a creative's sent sizes, as words ("Instagram, LinkedIn"), for the line under its title. Empty when it was not sent anywhere. */

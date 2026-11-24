@@ -29,6 +29,7 @@ const item = (over: Partial<LibraryItem> = {}): LibraryItem => ({
   publish: { state: "none", scheduled: 0, posted: 0, channels: [], inAd: false },
   master: { finalId: "f1", width: 1080, height: 1920 },
   versions: [],
+  words: null,
   actions: { download: true, newVersion: true, delete: true, deleteBlock: null },
   ...over,
 });
@@ -150,6 +151,48 @@ describe("what a tile says and can do", () => {
     const html = creatives({ view: "plans", actions: acts(), data: page([item({ status: "brief", actions: { download: false, newVersion: false, delete: true, deleteBlock: null } })]) });
     expect(html).toContain('aria-label="Delete: Diwali sale"');
     expect(html).not.toContain("Download");
+  });
+});
+
+describe("a words creative in the Library", () => {
+  const words = (over: Partial<LibraryItem> = {}) =>
+    item({
+      id: "w1",
+      kind: "words",
+      status: "previews_ready",
+      headline: "Diwali offer on silk sarees",
+      thumbUrl: null,
+      master: null,
+      words: { options: 4, approved: 2, card: { headline: "Silk for every festival", primaryText: "Hand woven, ready to wear.", description: null, cta: null, hashtags: [] }, platform: "linkedin" },
+      actions: { download: false, newVersion: false, delete: true, deleteBlock: null },
+      ...over,
+    });
+  it("draws the words themselves, never an empty picture slot, and says what is in the set", () => {
+    const html = creatives({ data: page([words()]) });
+    expect(html).toContain('data-kind="words"');
+    expect(html).toContain("Silk for every festival");
+    expect(html).toContain("Hand woven, ready to wear.");
+    expect(html).toContain("4 options, 2 approved. Written for LinkedIn");
+    expect(html).toContain("Approved words");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("No picture yet");
+    expect(html).not.toContain("Story");
+  });
+  it("one option reads as one option; a plan with no card yet says so; no Download or new version is offered", () => {
+    const one = creatives({ data: page([words({ words: { options: 1, approved: 1, card: null, platform: null } })]), actions: { canChange: true } });
+    expect(one).toContain("1 option, 1 approved");
+    expect(one).toContain("No words to show yet.");
+    expect(one).not.toContain("Download");
+    expect(one).not.toContain("Make a new version");
+    expect(one).toContain("Delete");
+  });
+  it("where it was sent beats the approved chip, as for a picture", () => {
+    const html = creatives({ data: page([words({ publish: { state: "posted", scheduled: 0, posted: 1, channels: ["instagram"], inAd: false } })]) });
+    expect(html).toContain("Posted");
+    expect(html).toContain("4 options, 2 approved. Written for LinkedIn. Instagram");
+  });
+  it("the status filter says what Finals means for words", () => {
+    expect(STUDIO_COPY.library.statuses.has_final).toBe("Finals and approved words");
   });
 });
 

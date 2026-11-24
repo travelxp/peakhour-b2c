@@ -37,6 +37,8 @@ export interface StudioBrief {
   noAiPeople: boolean;
   photoMediaIds: string[];
   count: number;
+  /** Words only: the channel the words are written for. Absent: no platform chosen (the writer's default, Facebook and Instagram). */
+  platform?: string;
 }
 
 export interface BriefWarning {
@@ -56,9 +58,12 @@ export interface BriefBody {
   noAiPeople?: boolean;
   photoMediaIds?: string[];
   count?: 3 | 4;
+  /** Words only. Left off when none is chosen. */
+  platform?: string;
 }
 
-export type BriefPatch = Partial<Omit<BriefBody, "kind">>;
+/** `platform: null` puts the choice back to none chosen. */
+export type BriefPatch = Partial<Omit<BriefBody, "kind" | "platform">> & { platform?: string | null };
 
 export interface CreatedBrief {
   creativeId: string;
@@ -364,7 +369,12 @@ export interface AdHandoff {
   /** One ad row per ad platform: an Instagram size and a LinkedIn size are two ads. */
   adCreatives: Array<{ platform: string; adCreativeId: string }>;
   note: string;
+  /** Words only: the parts of the words the platform's limits made shorter. Empty or absent when they fit as written. */
+  shortened?: WordsPart[];
 }
+
+/** A part of a words option, as the api names it. */
+export type WordsPart = "headline" | "primaryText" | "description" | "cta" | "hashtags";
 
 export interface SettingsPatch {
   noAiPeople?: boolean;

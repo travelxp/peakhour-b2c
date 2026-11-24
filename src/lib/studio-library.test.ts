@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type { LibraryItem } from "@/lib/api/creative";
 import type { ProductImportStatus } from "@/lib/api/media";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { bulkSummary, chipFor, creativeHref, downloadChoices, filterQuery, importLines, itemTitle, pageCount, sentTo } from "@/lib/studio-library";
+import { bulkSummary, chipFor, creativeHref, downloadChoices, filterQuery, importLines, itemTitle, pageCount, sentTo, subLine } from "@/lib/studio-library";
 
 describe("importLines", () => {
   const imp = (over: Partial<ProductImportStatus>): ProductImportStatus => ({ source: "shopify", status: "done", ...over });
@@ -35,6 +35,21 @@ describe("small helpers", () => {
     expect(chipFor({ status: "has_final" }, "made")).toBe("Final");
     expect(chipFor({ status: "archived" }, "made")).toBe("Archived");
     expect(chipFor({ status: "brief" }, "plans")).toBe("Saved plan");
+  });
+  it("a words creative is Approved words until it is sent; where it went and archived win, as for a picture", () => {
+    const w = (state: "none" | "scheduled" | "posted") => ({ status: "previews_ready" as const, kind: "words" as const, publish: { state, scheduled: 0, posted: 0, channels: [], inAd: false } });
+    expect(chipFor(w("none"), "made")).toBe("Approved words");
+    expect(chipFor(w("posted"), "made")).toBe("Posted");
+    expect(chipFor(w("scheduled"), "made")).toBe("Scheduled");
+    expect(chipFor({ ...w("posted"), status: "archived" }, "made")).toBe("Archived");
+    expect(chipFor(w("none"), "plans")).toBe("Saved plan");
+  });
+  it("the line under a tile is a picture's shape, or what is in a words set and the platform it was written for", () => {
+    const name = (k: string) => (k === "linkedin" ? "LinkedIn" : k);
+    expect(subLine({ kind: "image", format: "story", words: null }, "Story", name)).toBe("Story");
+    expect(subLine({ kind: "words", format: "feed", words: { options: 3, approved: 1, card: null, platform: null } }, "Words only", name)).toBe("3 options, 1 approved");
+    expect(subLine({ kind: "words", format: "feed", words: { options: 3, approved: 1, card: null, platform: "linkedin" } }, "Words only", name)).toBe("3 options, 1 approved. Written for LinkedIn");
+    expect(subLine({ kind: "words", format: "feed", words: null }, "Words only", name)).toBe("Words only");
   });
   it("the chip follows where it was sent: scheduled while any size waits, else posted, else plain Final; archived and plans win", () => {
     const sent = (state: "none" | "scheduled" | "posted") => ({ status: "has_final" as const, publish: { state, scheduled: 0, posted: 0, channels: [], inAd: false } });

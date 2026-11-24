@@ -1,6 +1,7 @@
 import type { PlacementRow, VersionRow } from "@/lib/api/creative-studio";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
+import { STUDIO_COPY } from "@/lib/studio-copy";
 
 /**
  * Pure helpers for platform versions (UX spec S12) and the post step (S13). No React, no fetching: tested directly. Merchant words come from
@@ -206,4 +207,19 @@ export async function makeSizes(a: {
     }
   }
   return { rendered, ready, extendStarted, requote: false, ...(extendError !== undefined ? { extendError } : {}) };
+}
+
+/**
+ * What an ad hand-off of words says when the platform's limits made some part shorter than it was written (never silent): one sentence per platform, naming the
+ * parts in plain words. Nothing for a platform the words fitted.
+ */
+export function shortenedLines(shortened: ReadonlyArray<{ platform: string; parts: ReadonlyArray<string> }>): string[] {
+  const names = STUDIO_COPY.post.shortenedParts;
+  return shortened
+    .filter((s) => s.parts.length > 0)
+    .map((s) => {
+      const parts = s.parts.map((p) => names[p] ?? p);
+      const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? "");
+      return STUDIO_COPY.post.adShortened(list, adPlatformLabel(s.platform));
+    });
 }

@@ -23,3 +23,12 @@ export async function exportBatchApprovals(batchId: string): Promise<{ ok: true 
   const out = await downloadConversationExport(batchApprovalsCsvPath(batchId), `studio-approvals-${batchId}.csv`, exportFailureLine);
   return out.ok ? { ok: true } : { ok: false, message: out.message };
 }
+
+/** The api's file of the words options decided on (CS-4d): words are not in a batch, so this is the business's own file, in the same columns. Free. */
+export const wordsApprovalsCsvPath = "/v1/creative/words/approvals.csv";
+
+/** Same helper, same sentences; the file is the business's approved and used words. `message` is set when it did not work. */
+export async function exportApprovedWords(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const out = await downloadConversationExport(wordsApprovalsCsvPath, "studio-approved-words.csv", exportFailureLine);
+  return out.ok ? { ok: true } : { ok: false, message: out.message };
+}
