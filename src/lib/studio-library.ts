@@ -28,14 +28,16 @@ export function importLines(imports: ProductImportStatus[], locale?: string): Im
  * The state chip on a creative in the Library. What the list can truthfully say: a saved plan, an archived one, or (from the handoff records) scheduled or
  * posted; anything else with a final is plain "Final".
  */
-export function chipFor(item: Pick<LibraryItem, "status"> & Partial<Pick<LibraryItem, "publish" | "kind">>, view: "made" | "plans"): string {
+export function chipFor(item: Pick<LibraryItem, "status"> & Partial<Pick<LibraryItem, "publish" | "kind" | "words">>, view: "made" | "plans"): string {
   const c = STUDIO_COPY.library.chips;
   if (view === "plans") return c.plan;
   if (item.status === "archived") return c.archived;
   if (item.publish?.state === "scheduled") return c.scheduled;
   if (item.publish?.state === "posted") return c.posted;
   // words are never a "final" (there is no picture to make final): approved is where they stand until they are sent
-  return item.kind === "words" ? c.words : c.final;
+  if (item.kind !== "words") return c.final;
+  // no count (an older answer) or none approved: the set is words and nothing more is claimed
+  return (item.words?.approved ?? 0) > 0 ? c.words : c.wordsWaiting;
 }
 
 /** The line under a tile's title: a picture's shape, or for words what is in the set (options and how many are approved) and the platform they were written for. */

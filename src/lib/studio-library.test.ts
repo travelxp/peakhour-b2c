@@ -36,9 +36,10 @@ describe("small helpers", () => {
     expect(chipFor({ status: "archived" }, "made")).toBe("Archived");
     expect(chipFor({ status: "brief" }, "plans")).toBe("Saved plan");
   });
-  it("a words creative is Approved words until it is sent; where it went and archived win, as for a picture", () => {
-    const w = (state: "none" | "scheduled" | "posted") => ({ status: "previews_ready" as const, kind: "words" as const, publish: { state, scheduled: 0, posted: 0, channels: [], inAd: false } });
+  it("a words creative is Approved words once one is approved, plain Words before; where it went and archived win, as for a picture", () => {
+    const w = (state: "none" | "scheduled" | "posted", approved = 2) => ({ status: "previews_ready" as const, kind: "words" as const, words: { options: 3, approved, card: null, platform: null }, publish: { state, scheduled: 0, posted: 0, channels: [], inAd: false } });
     expect(chipFor(w("none"), "made")).toBe("Approved words");
+    expect(chipFor(w("none", 0), "made")).toBe("Words");
     expect(chipFor(w("posted"), "made")).toBe("Posted");
     expect(chipFor(w("scheduled"), "made")).toBe("Scheduled");
     expect(chipFor({ ...w("posted"), status: "archived" }, "made")).toBe("Archived");

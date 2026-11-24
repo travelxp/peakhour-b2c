@@ -46,6 +46,7 @@ const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   onKind: noop,
   onNoAiPeople: noop,
   onPlatform: noop,
+  onRetryPlatforms: noop,
   onChangeProducts: noop,
   onRemoveProduct: noop,
   addPhoto: (id) => <button data-add-photo={id}>Add a photo</button>,
@@ -106,6 +107,7 @@ describe("the plan (S3): the rows", () => {
   it("the platform row says what it cannot show: loading, a failed read, no account connected, and keeps a plan's platform that is not connected now", () => {
     expect(render({ kind: "words", platforms: { state: "loading", choices: [] } })).toContain("Finding your connected accounts");
     expect(render({ kind: "words", platforms: { state: "failed", choices: [] } })).toContain("couldn&#x27;t read your connected accounts");
+    expect(render({ kind: "words", platforms: { state: "failed", choices: [] } })).toContain("Retry");
     const none = render({ kind: "words", platforms: { state: "ready", choices: [] } });
     expect(none).toContain("No account is connected yet");
     expect(none).toContain("/dashboard/integrations");

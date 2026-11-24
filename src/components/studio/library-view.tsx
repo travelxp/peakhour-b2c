@@ -49,6 +49,7 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
   const A = C.actions;
   const busy = actions?.busyIds?.has(item.id) ?? false;
   const sent = view === "made" ? sentTo(item) : "";
+  const line = subLine(item, format, channelLabel);
   const canChange = actions?.canChange ?? false;
   return (
     <li className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card" data-publish={view === "made" ? item.publish.state : undefined}>
@@ -86,7 +87,7 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
         </div>
         <div className="space-y-0.5 p-3">
           <p className="truncate text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{sent ? `${subLine(item, format, channelLabel)}. ${sent}` : subLine(item, format, channelLabel)}</p>
+          <p className="text-xs text-muted-foreground">{sent ? `${line}. ${sent}` : line}</p>
         </div>
       </Link>
       {actions && (

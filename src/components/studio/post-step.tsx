@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { FLOW_KEYS } from "@/hooks/use-studio-flow";
-import { studioApi, type AdHandoff, type OrganicHandoff } from "@/lib/api/creative-studio";
+import { studioApi, type AdHandoff, type OrganicHandoff, type ShortenedFor } from "@/lib/api/creative-studio";
 import { scheduler } from "@/lib/scheduler/client";
 import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -379,10 +379,10 @@ export function PostStep({
       const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
       if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");
       // The words were written once; going to a platform with tighter limits they are cut (free, no new call) and the merchant is told what was shortened.
-      const shortened = made.flatMap((m, i) => (m.status === "fulfilled" && m.value.shortened?.length ? [{ platform: asked[i]![0], parts: m.value.shortened }] : []));
-      return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "", shortenedFor: shortened } satisfies AdHandoff & { shortenedFor: Array<{ platform: string; parts: string[] }> };
+      const shortened: ShortenedFor[] = made.flatMap((m, i) => (m.status === "fulfilled" && m.value.shortened?.length ? [{ platform: asked[i]![0], parts: m.value.shortened }] : []));
+      return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "", shortenedFor: shortened } satisfies AdHandoff;
     },
-    onSuccess: (r: AdHandoff & { shortenedFor?: Array<{ platform: string; parts: string[] }> }) => {
+    onSuccess: (r: AdHandoff) => {
       // A channel the Ad Engine does not run is said, never left out silently.
       const missing = words ? words.channels.filter((c) => !r.adCreatives.some((a) => a.platform === adPlatformOf(c))) : [];
       setAdError(missing.length > 0 ? P.adNotFor(missing.map(channelLabel).join(", ")) : undefined);

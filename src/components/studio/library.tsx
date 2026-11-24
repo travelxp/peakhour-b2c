@@ -385,6 +385,7 @@ export function Library() {
               <Button type="button" variant="outline" className="h-11" disabled={exporting} aria-busy={exporting} onClick={() => void exportWords()}>
                 {exporting ? C.wordsExport.working : C.wordsExport.button}
               </Button>
+              <p className="w-full text-end text-xs text-muted-foreground">{C.wordsExport.hint}</p>
               {canChange && (
                 <Button
                   type="button"
@@ -501,7 +502,7 @@ export function Library() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{asked?.kind === "delete" ? C.actions.deleteTitle : asked?.action === "archive" ? C.bulk.archiveTitle(asked.count) : C.bulk.deleteTitle(asked?.count ?? 0)}</AlertDialogTitle>
-            <AlertDialogDescription>{asked?.kind === "delete" ? C.actions.deleteBody : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
+            <AlertDialogDescription>{asked?.kind === "delete" ? (asked.item.kind === "words" ? C.actions.deleteBodyWords : C.actions.deleteBody) : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={confirmBusy}>{C.actions.deleteCancel}</AlertDialogCancel>

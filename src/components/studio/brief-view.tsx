@@ -48,6 +48,7 @@ export interface BriefViewProps {
   platform: string | null;
   /** The platforms the business can write for: its connected channels. `loading` and `failed` are said, never an empty list. */
   platforms: { state: "loading" | "ready" | "failed"; choices: Array<{ key: string; label: string }> };
+  onRetryPlatforms: () => void;
   proTools: boolean;
   /** Is making previews switched on? false = the designed coming-soon card replaces the price and the button. */
   previews: "on" | "coming_soon" | "unknown";
@@ -111,7 +112,7 @@ function LanguageField({ value, onChange }: { value: string; onChange: (v: strin
  * Words only: the platform is chosen BEFORE the words are written, so they are written to its limits. "Not sure yet" is the default and writes for Facebook and
  * Instagram; the other choices are the channels the business has connected (a platform the plan already holds stays on the list while it is not connected).
  */
-function PlatformField({ value, platforms, onChange }: { value: string | null; platforms: BriefViewProps["platforms"]; onChange: (v: string | null) => void }) {
+function PlatformField({ value, platforms, onChange, onRetry }: { value: string | null; platforms: BriefViewProps["platforms"]; onChange: (v: string | null) => void; onRetry: () => void }) {
   const P = B.wordsPlan.platform;
   const choices = value && !platforms.choices.some((c) => c.key === value) ? [{ key: value, label: channelLabel(value) }, ...platforms.choices] : platforms.choices;
   return (
@@ -120,7 +121,14 @@ function PlatformField({ value, platforms, onChange }: { value: string | null; p
         {P.label}
       </h2>
       {platforms.state === "loading" && <p className="text-sm text-muted-foreground">{P.loading}</p>}
-      {platforms.state === "failed" && <p className="text-sm text-muted-foreground">{P.failed}</p>}
+      {platforms.state === "failed" && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <p>{P.failed}</p>
+          <Button type="button" variant="outline" size="sm" className="h-11 sm:h-8" onClick={onRetry}>
+            {STUDIO_COPY.quote.retry}
+          </Button>
+        </div>
+      )}
       {platforms.state === "ready" && choices.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {P.connectNone}{" "}
@@ -338,7 +346,7 @@ export function BriefView(p: BriefViewProps) {
       </section>
 
       {/* Words only: the platform is chosen before the words are written */}
-      {words && <PlatformField value={p.platform} platforms={p.platforms} onChange={p.onPlatform} />}
+      {words && <PlatformField value={p.platform} platforms={p.platforms} onChange={p.onPlatform} onRetry={p.onRetryPlatforms} />}
 
       {/* 4. Where it will go: the shape of the preview (a words-only post has no picture, so no shape) */}
       {!words && (

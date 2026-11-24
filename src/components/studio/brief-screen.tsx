@@ -193,7 +193,8 @@ export function BriefScreen() {
     ...(words && form.platform ? { platform: form.platform } : {}),
   };
   const snapshot = JSON.stringify(body);
-  // A change goes to the plan as it stands, so a platform taken back to "Not sure yet" is sent as null (a new plan simply leaves it off).
+  // The platform goes to a saved plan only when it differs from what the api holds (so an unrelated edit never re-sends it); taking it back to "Not sure yet" is sent as
+  // null. A new plan carries it in the body, or leaves it off.
   const platformPatch = words && form.platform !== serverPlatform ? { platform: form.platform } : {};
   // The platforms the words can be written for: the channels the business has connected.
   const connected = useConnectedChannels(words);
@@ -234,8 +235,9 @@ export function BriefScreen() {
             next.set("c", r.creativeId);
             router.replace(`${pathname}?${next.toString()}`);
           } else {
-            const { kind: _kind, ...rest } = body;
+            const { kind: _kind, platform: _platform, ...rest } = body;
             void _kind;
+            void _platform;
             const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
             setWarnings(r.warnings);
             setServerNoAi(r.brief.noAiPeople);
@@ -273,8 +275,9 @@ export function BriefScreen() {
     setSaveFailed(false);
     try {
       if (creativeId) {
-        const { kind: _kind, ...rest } = body;
+        const { kind: _kind, platform: _platform, ...rest } = body;
         void _kind;
+        void _platform;
         const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
         setServerPlatform(r.brief.platform ?? null);
       } else {
@@ -408,6 +411,7 @@ export function BriefScreen() {
         onKind={onKind}
         onNoAiPeople={(v) => setForm((f) => ({ ...f, noAiPeople: v }))}
         onPlatform={(platform) => setForm((f) => ({ ...f, platform }))}
+        onRetryPlatforms={() => void connected.refetch()}
         onChangeProducts={() => setPickerOpen(true)}
         onRemoveProduct={(id) => setForm((f) => ({ ...f, productIds: f.productIds.filter((x) => x !== id) }))}
         addPhoto={(productId, title) => (

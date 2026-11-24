@@ -1,4 +1,4 @@
-import type { PlacementRow, VersionRow } from "@/lib/api/creative-studio";
+import type { PlacementRow, ShortenedFor, VersionRow } from "@/lib/api/creative-studio";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import { STUDIO_COPY } from "@/lib/studio-copy";
@@ -211,15 +211,12 @@ export async function makeSizes(a: {
 
 /**
  * What an ad hand-off of words says when the platform's limits made some part shorter than it was written (never silent): one sentence per platform, naming the
- * parts in plain words. Nothing for a platform the words fitted.
+ * parts in plain words. Nothing for a platform the words fitted, and a part this app has no plain word for is left out rather than shown as the api's key.
  */
-export function shortenedLines(shortened: ReadonlyArray<{ platform: string; parts: ReadonlyArray<string> }>): string[] {
+export function shortenedLines(shortened: ReadonlyArray<ShortenedFor>): string[] {
   const names = STUDIO_COPY.post.shortenedParts;
-  return shortened
-    .filter((s) => s.parts.length > 0)
-    .map((s) => {
-      const parts = s.parts.map((p) => names[p] ?? p);
-      const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? "");
-      return STUDIO_COPY.post.adShortened(list, adPlatformLabel(s.platform));
-    });
+  return shortened.flatMap((s) => {
+    const parts = s.parts.map((p) => names[p]).filter((n): n is string => !!n);
+    return parts.length > 0 ? [STUDIO_COPY.post.adShortened(STUDIO_COPY.post.partsList(...parts), adPlatformLabel(s.platform))] : [];
+  });
 }

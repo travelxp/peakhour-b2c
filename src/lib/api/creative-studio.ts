@@ -371,6 +371,14 @@ export interface AdHandoff {
   note: string;
   /** Words only: the parts of the words the platform's limits made shorter. Empty or absent when they fit as written. */
   shortened?: WordsPart[];
+  /** Words ad hand-offs, built by the app from one answer per platform it asked: what each platform's limits shortened. */
+  shortenedFor?: ShortenedFor[];
+}
+
+/** The parts of the words that one ad platform's limits made shorter. */
+export interface ShortenedFor {
+  platform: string;
+  parts: WordsPart[];
 }
 
 /** A part of a words option, as the api names it. */
