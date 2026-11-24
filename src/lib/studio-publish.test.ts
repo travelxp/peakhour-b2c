@@ -227,7 +227,7 @@ describe("what a cut says (words written for one platform, sent to an ad on anot
     ]);
     expect(shortenedLines([])).toEqual([]);
     // a part with no plain word is left out, never shown as the api's key
-    expect(shortenedLines([{ platform: "tiktok", parts: ["somethingNew" as never] }])).toEqual([]);
+    expect(shortenedLines([{ platform: "tiktok", parts: ["somethingNew" as never] }])).toEqual(["We shortened some of the words to fit TikTok."]);
     expect(shortenedLines([{ platform: "tiktok", parts: ["somethingNew" as never, "cta"] }])).toEqual(["We shortened the button to fit TikTok."]);
   });
 });

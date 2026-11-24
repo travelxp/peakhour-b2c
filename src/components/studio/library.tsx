@@ -382,10 +382,9 @@ export function Library() {
           {proTools && <LibraryFilters q={q} values={filters} onQ={setQ} onChange={change} />}
           {proTools && (
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" className="h-11" disabled={exporting} aria-busy={exporting} onClick={() => void exportWords()}>
+              <Button type="button" variant="outline" className="h-11" disabled={exporting} aria-busy={exporting} aria-describedby="studio-words-export-hint" onClick={() => void exportWords()}>
                 {exporting ? C.wordsExport.working : C.wordsExport.button}
               </Button>
-              <p className="w-full text-end text-xs text-muted-foreground">{C.wordsExport.hint}</p>
               {canChange && (
                 <Button
                   type="button"
@@ -400,6 +399,9 @@ export function Library() {
                   {selecting ? C.bulk.done : C.bulk.select}
                 </Button>
               )}
+            <p id="studio-words-export-hint" className="w-full text-end text-xs text-muted-foreground">
+                {C.wordsExport.hint}
+              </p>
             </div>
           )}
           <CreativesView view="made" status={ideasFeedStatus(made)} data={made.data} filtered={filtered} onRetry={() => void made.refetch()} onClearFilters={clear} onPage={goPage} actions={tileActions} />

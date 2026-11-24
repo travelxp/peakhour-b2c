@@ -217,6 +217,7 @@ export function shortenedLines(shortened: ReadonlyArray<ShortenedFor>): string[]
   const names = STUDIO_COPY.post.shortenedParts;
   return shortened.flatMap((s) => {
     const parts = s.parts.map((p) => names[p]).filter((n): n is string => !!n);
-    return parts.length > 0 ? [STUDIO_COPY.post.adShortened(STUDIO_COPY.post.partsList(...parts), adPlatformLabel(s.platform))] : [];
+    if (s.parts.length === 0) return [];
+    return [parts.length > 0 ? STUDIO_COPY.post.adShortened(STUDIO_COPY.post.partsList(...parts), adPlatformLabel(s.platform)) : STUDIO_COPY.post.adShortenedSome(adPlatformLabel(s.platform))];
   });
 }

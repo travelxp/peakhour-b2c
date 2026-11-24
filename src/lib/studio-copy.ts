@@ -745,6 +745,8 @@ export const STUDIO_COPY = {
     /** Words written for one platform and sent to an ad on another: what the platform's limits made shorter (never silent). */
     adShortened: (parts: string, platform: string) => `We shortened the ${parts} to fit ${platform}.`,
     shortenedParts: { headline: "headline", primaryText: "main text", description: "description", cta: "button", hashtags: "hashtags" } as Record<string, string>,
+    /** The parts were reported but this app has no plain word for any of them. */
+    adShortenedSome: (platform: string) => `We shortened some of the words to fit ${platform}.`,
     /** "headline", "headline and main text", "headline, main text and button". */
     partsList: (...names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? "")),
     openGrowth: "Open in Growth",

@@ -49,7 +49,7 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
   const A = C.actions;
   const busy = actions?.busyIds?.has(item.id) ?? false;
   const sent = view === "made" ? sentTo(item) : "";
-  const line = subLine(item, format, channelLabel);
+  const line = subLine(item, format, (k) => C.channels[k] ?? channelLabel(k));
   const canChange = actions?.canChange ?? false;
   return (
     <li className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card" data-publish={view === "made" ? item.publish.state : undefined}>
