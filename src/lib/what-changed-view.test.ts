@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { draftButtonState, emptyNote, DRAFT_BUTTON_LABEL } from "./what-changed-view";
+import { draftButtonState, emptyNote, joinWhatChanged, DRAFT_BUTTON_LABEL } from "./what-changed-view";
 
 describe("the Draft this post button's price", () => {
   it("says the price in Peaks before anything runs, and may be pressed", () => {
@@ -35,5 +35,19 @@ describe("the note when there is nothing to say", () => {
   });
   it("steady is not the same as too little", () => {
     expect(emptyNote({ state: "steady", measuredPosts: 9, needed: 3, name: "LinkedIn" })).toBe("Nothing has changed enough on LinkedIn to mention.");
+  });
+});
+
+describe("one card: account lines first, a statement made once", () => {
+  const l = (id: string, text = id) => ({ id, group: "attention" as const, text });
+  it("lists account lines before post results, with distinct keys", () => {
+    const out = joinWhatChanged([l("reach_up")], [l("engagement_up"), l("reach_up")]);
+    expect(out.map((o) => o.key)).toEqual(["account-reach_up", "posts-engagement_up", "posts-reach_up"]);
+  });
+  it("drops the post-results quiet line when the account already says quiet or post more often", () => {
+    expect(joinWhatChanged([l("quiet")], [l("quiet")]).map((o) => o.key)).toEqual(["account-quiet"]);
+    expect(joinWhatChanged([l("reach_down", "Views fell 30%: post more often this week.")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down"]);
+    expect(joinWhatChanged([l("reach_down", "Views fell 30%: try a different kind of post.")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down", "posts-quiet"]);
+    expect(joinWhatChanged([l("reach_up")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_up", "posts-quiet"]);
   });
 });
