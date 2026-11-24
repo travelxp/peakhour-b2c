@@ -416,6 +416,8 @@ describe("RepurposedReview: the first comment", () => {
     await mount();
     await type(boxes()[1]!, "w".repeat(285));
     expect(container.textContent).toContain("5 over the 280 characters this channel takes");
+    expect(container.querySelector("[role=alert]")?.textContent).toBeTruthy();
+    expect(container.textContent).toContain("Shorten it to approve.");
     expect(button("Approve", container)!.disabled).toBe(true);
     await type(boxes()[1]!, "w".repeat(280));
     expect(button("Approve", container)!.disabled).toBe(false);

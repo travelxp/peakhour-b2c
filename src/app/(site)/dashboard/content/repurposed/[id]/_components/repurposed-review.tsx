@@ -230,6 +230,11 @@ export function RepurposedReview({ id }: { id: string }) {
         canEdit ? (
           <div className="space-y-2" aria-busy={pending}>
             <p className="text-sm text-muted-foreground">{approveSummary(effects)} You can also reply YES on WhatsApp.</p>
+            {tooLong && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                A first comment is over the length its channel takes. Shorten it to approve.
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <ConfirmDialog
                 trigger={
