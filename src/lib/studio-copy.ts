@@ -417,6 +417,8 @@ export const STUDIO_COPY = {
       blocked: "Didn't match. Not charged.",
       failed: "Didn't work. Not charged.",
       changed: "Changed. Tap the heart again.",
+      posted: "Posted",
+      scheduled: "Scheduled",
     },
     started: (n: number) => `${n} ${n === 1 ? "final is" : "finals are"} on the way. They're made one after another.`,
     shortSome: (k: number) => `Your Peaks cover ${k} of these. The rest were not started.`,
@@ -800,6 +802,17 @@ export const STUDIO_COPY = {
     heartAdded: (n: number) => `Added to shortlist. ${n} shortlisted.`,
     heartRemoved: (n: number) => `Removed from shortlist. ${n} shortlisted.`,
     moreStarted: "Writing more options.",
+    sent: {
+      posted: (channels: string) => `Posted on ${channels}`,
+      scheduled: (channels: string) => `Scheduled on ${channels}`,
+      useAgain: "Use these words again",
+    },
+    again: {
+      title: "You've already used these words",
+      question: "Post them again?",
+      yes: "Yes, use them again",
+      no: "No, keep them as they are",
+    },
     sheet: {
       title: "Use these words",
       description: "Choose where they will go. You approve every post: nothing goes out until you press Post it or Schedule it.",

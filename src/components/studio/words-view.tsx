@@ -18,14 +18,23 @@ import { QuoteBlock, usePeaksLeft, type QuoteBlockState } from "@/components/stu
 import { RefusalNote } from "@/components/studio/refusal-note";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useConnectedChannels, useHeart, usePress, usePressQuote, useSkip, useStudioAbilities } from "@/hooks/use-studio-flow";
-import type { CreativeView, PreviewView } from "@/lib/api/creative-studio";
-import { creativePhase, isActionable, makingProgress, receiptsOf, STUDIO_PATHS, studioRefusal, type StudioRefusal } from "@/lib/studio-flow";
-import { STUDIO_CHANNELS } from "@/lib/studio-publish";
+import type { CreativeView, PreviewView, WordsSent } from "@/lib/api/creative-studio";
+import { creativePhase, isActionable, makingProgress, receiptsOf, sentState, STUDIO_PATHS, studioRefusal, type StudioRefusal } from "@/lib/studio-flow";
+import { channelLabel, STUDIO_CHANNELS } from "@/lib/studio-publish";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
 const W = STUDIO_COPY.words;
+
+/** "Posted on Facebook, Instagram. Scheduled on LinkedIn.": all of where a used option went, or null while it has gone nowhere (an ad row alone is not a post). */
+export function sentLine(sent: WordsSent | null | undefined): string | null {
+  if (!sent || !sentState(sent)) return null;
+  const names = (cs: string[]) => cs.map(channelLabel).join(", ");
+  // a channel that was scheduled and then posted is told once, as posted
+  const scheduled = sent.scheduled.filter((c) => !sent.posted.includes(c));
+  return [sent.posted.length > 0 ? W.sent.posted(names(sent.posted)) : "", scheduled.length > 0 ? W.sent.scheduled(names(scheduled)) : ""].filter(Boolean).join(". ");
+}
 
 /** One option card (S20): the headline, the main text, the description, the button and the hashtags, with the heart and "Not for me". */
 export function WordsCardView({
@@ -57,7 +66,14 @@ export function WordsCardView({
       className={cn("flex flex-col gap-3 rounded-lg border bg-card p-4", liked && "border-primary ring-1 ring-primary")}
     >
       <div className="flex items-start justify-between gap-2">
-        <Badge variant="secondary">{label}</Badge>
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge variant="secondary">{label}</Badge>
+          {sentLine(preview.sent) && (
+            <Badge variant="outline" data-slot="studio-words-used">
+              {sentLine(preview.sent)}
+            </Badge>
+          )}
+        </div>
         <HeartButton
           pressed={liked}
           label={W.heartLabel(index + 1)}
@@ -97,7 +113,7 @@ export function WordsCardView({
       {preview.safety?.status === "fixed" && <p className="text-xs text-muted-foreground">{preview.safety.note || W.adjusted}</p>}
       <div className="mt-auto flex flex-wrap gap-2">
         <Button type="button" className="h-11" disabled={!canMake || !liked} onClick={() => onUse(preview)}>
-          {W.use}
+          {sentLine(preview.sent) ? W.sent.useAgain : W.use}
         </Button>
         <Button type="button" variant="ghost" className="h-11" disabled={!canMake} onClick={() => onSkip(preview)}>
           {W.notForMe}
@@ -232,21 +248,46 @@ export function WordsView(p: WordsViewProps) {
  */
 export function WordsUseSheet({ open, onOpenChange, creativeId, preview }: { open: boolean; onOpenChange: (o: boolean) => void; creativeId: string; preview: PreviewView | undefined }) {
   const mobile = useIsMobile();
-  const [step, setStep] = useState<"channels" | "post">("channels");
+  // An option that was already posted or scheduled asks first; every other starts at the channels. The first step is read from the option, so it is right whenever the sheet opens.
+  const [chosen, setChosen] = useState<"channels" | "post" | null>(null);
+  // Latched when the sheet opens: a refetch that finds the option sent meanwhile must not move the screen under the person.
+  const [firstStep, setFirstStep] = useState<"again" | "channels" | null>(null);
+  if (!open && firstStep !== null) setFirstStep(null);
+  else if (open && preview && firstStep === null) setFirstStep(sentState(preview.sent) !== null ? "again" : "channels");
+  const step: "again" | "channels" | "post" = chosen ?? firstStep ?? "channels";
+  const setStep = (s: "channels" | "post") => setChosen(s);
   const close = (o: boolean) => {
-    if (!o) setStep("channels");
+    if (!o) setChosen(null);
     onOpenChange(o);
   };
   return (
     <Sheet open={open} onOpenChange={close}>
       <SheetContent side={mobile ? "bottom" : "right"} className={cn("gap-3 p-4", mobile ? "h-[92dvh]" : "sm:max-w-lg")}>
         <SheetHeader className="p-0 text-start">
-          <SheetTitle>{step === "channels" ? W.sheet.title : STUDIO_COPY.post.title}</SheetTitle>
-          <SheetDescription>{step === "channels" ? W.sheet.description : STUDIO_COPY.post.description}</SheetDescription>
+          <SheetTitle>{step === "again" ? W.again.title : step === "channels" ? W.sheet.title : STUDIO_COPY.post.title}</SheetTitle>
+          <SheetDescription>{step === "again" ? W.again.question : step === "channels" ? W.sheet.description : STUDIO_COPY.post.description}</SheetDescription>
         </SheetHeader>
-        {open && preview && <WordsUseBody step={step} setStep={setStep} creativeId={creativeId} preview={preview} onClose={() => close(false)} />}
+        {open && preview && step === "again" && <WordsAgain sent={preview.sent} onYes={() => setChosen("channels")} onNo={() => close(false)} />}
+        {open && preview && step !== "again" && <WordsUseBody step={step} setStep={setStep} creativeId={creativeId} preview={preview} onClose={() => close(false)} />}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** The question before an option that already went out is used again: where it went, then Yes or No. Nothing is sent by either. */
+export function WordsAgain({ sent, onYes, onNo }: { sent: WordsSent | null | undefined; onYes: () => void; onNo: () => void }) {
+  return (
+    <div className="flex flex-col gap-4" data-slot="studio-words-again">
+      <p className="text-sm">{sentLine(sent)}.</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button type="button" className="h-12" onClick={onYes}>
+          {W.again.yes}
+        </Button>
+        <Button type="button" variant="outline" className="h-12" onClick={onNo}>
+          {W.again.no}
+        </Button>
+      </div>
+    </div>
   );
 }
 

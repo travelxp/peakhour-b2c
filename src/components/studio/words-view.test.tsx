@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const { WordsView, WordsCardView } = await import("./words-view");
+const { WordsView, WordsCardView, WordsAgain, sentLine } = await import("./words-view");
 
 import type { WordsViewProps } from "./words-view";
 import type { PreviewView } from "@/lib/api/creative-studio";
@@ -94,6 +94,38 @@ describe("words only (S20): the option cards", () => {
     expect(html).toContain("We adjusted the wording to follow IN rules.");
     expect(html).not.toContain("Description");
     expect(html).not.toContain("Hashtags");
+  });
+});
+
+describe("words only: an option that was used", () => {
+  const used = (sent: PreviewView["sent"]) => renderToStaticMarkup(<WordsCardView preview={card({ liked: true, state: "shortlisted", sent })} index={0} total={2} canMake onHeart={noop} onSkip={noop} onUse={noop} />);
+
+  it("says where it went on the card, and the button now offers to use it again", () => {
+    const posted = used({ posted: ["instagram", "facebook"], scheduled: [], inAd: false });
+    expect(posted).toContain("Posted on Instagram, Facebook");
+    expect(posted).toContain("Use these words again");
+    expect(used({ posted: [], scheduled: ["linkedin"], inAd: false })).toContain("Scheduled on LinkedIn");
+  });
+
+  it("a card that went nowhere, or only to an ad, reads as unused", () => {
+    for (const sent of [null, undefined, { posted: [] as string[], scheduled: [] as string[], inAd: true }]) {
+      const html = used(sent);
+      expect(html).not.toContain("studio-words-used");
+      expect(html).not.toContain("again");
+    }
+    expect(sentLine({ posted: [], scheduled: [], inAd: true })).toBeNull();
+  });
+
+  it("tells both where it was posted and where it is scheduled, and a channel that went from scheduled to posted once, as posted", () => {
+    expect(sentLine({ posted: ["facebook"], scheduled: ["linkedin"], inAd: false })).toBe("Posted on Facebook. Scheduled on LinkedIn");
+    expect(sentLine({ posted: ["facebook"], scheduled: ["facebook"], inAd: false })).toBe("Posted on Facebook");
+  });
+
+  it("asks first, says where it went, and offers Yes and No", () => {
+    const html = renderToStaticMarkup(<WordsAgain sent={{ posted: ["facebook"], scheduled: [], inAd: false }} onYes={noop} onNo={noop} />);
+    expect(html).toContain("Posted on Facebook");
+    expect(html).toContain("Yes, use them again");
+    expect(html).toContain("No, keep them as they are");
   });
 });
 

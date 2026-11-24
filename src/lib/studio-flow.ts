@@ -10,6 +10,7 @@ import type {
   ProductImage,
   ShortlistItem,
   Swatch,
+  WordsSent,
 } from "@/lib/api/creative-studio";
 
 /**
@@ -244,10 +245,20 @@ export function chosenForFinal<T extends { previewId: string }>(items: T[], pick
   return picked ? items.filter((i) => picked.has(i.previewId)) : items.slice(0, max);
 }
 
-export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed";
+export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed" | "posted" | "scheduled";
+
+/** What a words option's send makes it: "posted" once any channel took it, else "scheduled", else null (unused; an ad row alone is not a post). One rule for the chip, the badge and the ask. */
+export function sentState(sent: WordsSent | null | undefined): "posted" | "scheduled" | null {
+  if (!sent) return null;
+  if (sent.posted.length > 0) return "posted";
+  return sent.scheduled.length > 0 ? "scheduled" : null;
+}
 
 export function shortlistChip(i: ShortlistItem): ShortlistChip {
   if (i.lapsed) return "changed";
+  // A words option that was used is not waiting any more.
+  const used = sentState(i.sent);
+  if (used) return used;
   switch (i.state) {
     case "finalizing":
       return "making";

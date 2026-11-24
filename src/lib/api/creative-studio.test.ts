@@ -100,6 +100,11 @@ describe("platform versions, handoff and settings", () => {
     expect(post).toHaveBeenNthCalledWith(3, "/v1/creative/c1/handoff/confirm", { versionIds: ["v1"], state: "scheduled" });
   });
 
+  it("a words option's send is recorded by its channels, never by sizes", async () => {
+    await studioApi.confirmWordsHandoff("c1", "p1", ["instagram", "facebook"], "published");
+    expect(post).toHaveBeenCalledWith("/v1/creative/c1/handoff/confirm", { previewIds: ["p1"], channels: ["instagram", "facebook"], state: "published" });
+  });
+
   it("report-mismatch, the badge count and settings", async () => {
     await studioApi.reportMismatch("f1", "the colour");
     expect(post).toHaveBeenCalledWith("/v1/creative/finals/f1/report-mismatch", { text: "the colour" });
