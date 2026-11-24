@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { AutoWriteInput, AutoWriteJobKey, AutoWriteStatus } from "@/lib/auto-write";
+import { pauseLine, type AutoWriteInput, type AutoWriteJobKey, type AutoWriteStatus } from "@/lib/auto-write";
 
 const h = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), role: "admin" as string }));
 vi.mock("@/lib/api", () => ({ api: { get: h.get, put: h.put }, API_BASE_URL: "https://api.example" }));
@@ -100,6 +100,52 @@ const type = async (el: HTMLInputElement, value: string) => {
   });
   await settle();
 };
+
+describe("FU-5: paused for Peaks, or the monthly limit reached", () => {
+  const paused = { reason: "not_enough_peaks" as const, since: "2026-11-20T12:00:00.000Z", skipped: 3 };
+  const bar = () => host.querySelector<HTMLElement>('[data-testid="auto-write-paused"]');
+
+  it("says it is paused for want of Peaks, how many jobs were skipped since when, and links to the Peaks page", async () => {
+    await mount(status({ pause: paused, monthlyCapPeaks: 5000, remainingPeaks: 5000 }, ["weekly_plan"]));
+    expect(bar()!.textContent).toContain("Paused: not enough Peaks.");
+    expect(bar()!.textContent).toContain("3 jobs were skipped since");
+    const link = host.querySelector<HTMLAnchorElement>('[data-testid="auto-write-topup"]')!;
+    expect(link.getAttribute("href")).toBe("/dashboard/peaks");
+    expect(link.textContent).toBe("Add Peaks");
+    expect(bar()!.textContent).not.toMatch(/[₹$£€]/);
+  });
+
+  it("the paused line is a sentence a person can read: one job, a day, a full stop", () => {
+    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 3 }, "UTC")).toBe("3 jobs were skipped since 20 Nov.");
+    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 1 }, "UTC")).toBe("1 job was skipped since 20 Nov.");
+    expect(pauseLine({ since: "not a date", skipped: 2 })).toBe("2 jobs were skipped.");
+  });
+
+  it("the monthly limit reached is a different message, and is not offered a top-up", async () => {
+    await mount(status({ limitReached: true, monthlyCapPeaks: 300, usedPeaks: 200, remainingPeaks: 100 }, ["weekly_plan"]));
+    const note = host.querySelector<HTMLElement>('[data-testid="auto-write-limit-reached"]')!;
+    expect(note.textContent).toContain("Monthly limit reached");
+    expect(bar()).toBeNull();
+    expect(host.querySelector('[data-testid="auto-write-topup"]')).toBeNull();
+    expect(host.textContent).not.toContain("not enough Peaks");
+  });
+
+  it("an empty wallet wins over the limit when both are true (the merchant can act on the wallet)", async () => {
+    await mount(status({ pause: paused, limitReached: true, monthlyCapPeaks: 300 }, ["weekly_plan"]));
+    expect(bar()).not.toBeNull();
+    expect(host.querySelector('[data-testid="auto-write-limit-reached"]')).toBeNull();
+  });
+
+  it("says neither when the api sends neither (an older api, or nothing is wrong)", async () => {
+    await mount(status({}, ["weekly_plan"]));
+    expect(bar()).toBeNull();
+    expect(host.querySelector('[data-testid="auto-write-limit-reached"]')).toBeNull();
+    act(() => root.unmount());
+    host.remove();
+    await mount(status({ pause: null, limitReached: false }, ["weekly_plan"]));
+    expect(bar()).toBeNull();
+  });
+});
 
 describe("the card", () => {
   it("lists all six jobs, every one OFF, each with its price per draft in Peaks from the api, and says nothing runs without a limit", async () => {

@@ -56,6 +56,21 @@ export interface AutoWriteStatus {
   jobs: AutoWriteJobStatus[];
   /** At least one job is on AND a limit is set. */
   runs: boolean;
+  /**
+   * Automatic writing could not afford a draft and the wallet is still short (FU-5): jobs were skipped since `since`. Null (or absent from an older api) otherwise. This is the
+   * empty-wallet case; the merchant's own monthly limit is `limitReached`, a different message.
+   */
+  pause?: AutoWritePause | null;
+  /** The month's limit is reached: a job is on and none has room for another draft this month. */
+  limitReached?: boolean;
+}
+
+export interface AutoWritePause {
+  reason: "not_enough_peaks";
+  /** ISO time of the first skip of this stretch. */
+  since: string;
+  /** How many jobs were skipped since then. */
+  skipped: number;
 }
 
 export interface AutoWriteInput {
@@ -94,12 +109,25 @@ export const AUTO_WRITE_COPY = {
   limitBelowPrice: "The limit must cover at least one draft.",
   planDay: "Day of the week",
   planCount: "Drafts each week",
+  pausedTitle: "Paused: not enough Peaks.",
+  topUp: "Add Peaks",
+  limitReachedTitle: "Monthly limit reached",
+  limitReachedNote: "Peakhour will not write more automatically this month. It starts again next month, or when you raise the limit.",
   planNote: "Each draft is charged only when it is written, and the monthly limit still applies. Changing this costs nothing.",
 } as const;
 
 /** "Each draft costs 225 Peaks, and only when the draft is written." */
 export function priceLine(price: number | null): string | null {
   return price === null ? null : `Each draft costs ${peaksWord(price)}, and only when the draft is written.`;
+}
+
+/** "3 jobs were skipped since 20 Nov." Names the day in the viewer's own time zone (`timeZone` is for tests). */
+export function pauseLine(p: Pick<AutoWritePause, "since" | "skipped">, timeZone?: string): string {
+  const d = new Date(p.since);
+  const since = Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(timeZone ? { timeZone } : {}) });
+  const n = Math.max(1, p.skipped);
+  const jobs = n === 1 ? "1 job was skipped" : `${n} jobs were skipped`;
+  return since ? `${jobs} since ${since}.` : `${jobs}.`;
 }
 
 /** "Used this month: 450 of 5,000 Peaks." */

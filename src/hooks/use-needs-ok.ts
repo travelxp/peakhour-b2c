@@ -36,6 +36,8 @@ export interface NeedsOkItem {
   createdAt: string | null;
   /** ISO time a waiting automatic draft stops being approvable (it is closed unapproved after this), set only on a repurposed batch that has a deadline. */
   expiresAt?: string | null;
+  /** Set when automatic writing made this draft: `label` is "Peakhour wrote this", `reason` says what for ("your weekly plan", "your new blog post <title>"). */
+  autoWrite?: { job: string; label: string; reason: string };
   /** The screen where it is approved today. */
   href: string;
   channel: string;

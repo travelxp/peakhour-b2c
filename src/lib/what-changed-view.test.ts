@@ -46,8 +46,14 @@ describe("one card: account lines first, a statement made once", () => {
   });
   it("drops the post-results quiet line when the account already says quiet or post more often", () => {
     expect(joinWhatChanged([l("quiet")], [l("quiet")]).map((o) => o.key)).toEqual(["account-quiet"]);
-    expect(joinWhatChanged([l("reach_down", "Views fell 30%: post more often this week.")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down"]);
+    expect(joinWhatChanged([{ ...l("reach_down", "Views fell 30%: post more often this week."), implies: "post_more" as const }], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down"]);
     expect(joinWhatChanged([l("reach_down", "Views fell 30%: try a different kind of post.")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down", "posts-quiet"]);
     expect(joinWhatChanged([l("reach_up")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_up", "posts-quiet"]);
+  });
+  it("is decided by the flag, never the wording", () => {
+    const reworded = { ...l("reach_down", "Reach slipped by a third. Share more this week."), implies: "post_more" as const };
+    expect(joinWhatChanged([reworded], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down"]);
+    // the old wording without the flag no longer counts
+    expect(joinWhatChanged([l("reach_down", "Views fell 30%: post more often this week.")], [l("quiet")]).map((o) => o.key)).toEqual(["account-reach_down", "posts-quiet"]);
   });
 });

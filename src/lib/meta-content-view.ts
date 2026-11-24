@@ -259,6 +259,8 @@ export interface MetaInsightLine {
   text: string;
   /** The brief for the post this line asks for, for "Draft this post". Present on every line, since each one implies an action. */
   draft: string;
+  /** What the line already tells the merchant to do, as data: a line made elsewhere that says the same is dropped by this flag, never by reading wording. */
+  implies?: "post_more";
 }
 
 /** Posts in the last INSIGHT_QUIET_DAYS, or null when dates cannot be read (never a guessed 0). */
@@ -314,11 +316,15 @@ export function metaInsightActions(input: {
   if (headPct !== null && -headPct >= INSIGHT_FALL_PCT) {
     // "Post more often" is advice only for an account that posts rarely; one that already posts
     // regularly is told to change what it posts. An unknown count gets the neutral advice.
-    const advice =
-      input.recentPosts !== null && input.recentPosts < INSIGHT_REGULAR_POSTS
-        ? "post more often this week"
-        : "try a different kind of post this week, like the ones that did best";
-    lines.push({ id: "reach_down", group: "declining", text: `${head.noun} fell ${-headPct}% on ${vs}: ${advice}.`, draft: brief("Try a different kind of post from your last few, like the ones that did best.") });
+    const postMore = input.recentPosts !== null && input.recentPosts < INSIGHT_REGULAR_POSTS;
+    const advice = postMore ? "post more often this week" : "try a different kind of post this week, like the ones that did best";
+    lines.push({
+      id: "reach_down",
+      group: "declining",
+      text: `${head.noun} fell ${-headPct}% on ${vs}: ${advice}.`,
+      draft: brief("Try a different kind of post from your last few, like the ones that did best."),
+      ...(postMore ? { implies: "post_more" as const } : {}),
+    });
   }
   const eng = ENGAGEMENT[channel];
   const engPct = pct(eng.key);
@@ -327,7 +333,7 @@ export function metaInsightActions(input: {
   }
   // A fall already told to "post more often" carries the quiet account's point; say it once.
   if (input.recentPosts === 0 && !lines.some((l) => l.id === "reach_down")) {
-    lines.push({ id: "quiet", group: "attention", text: `No posts in the last ${INSIGHT_QUIET_DAYS} days.`, draft: brief("Pick up where you left off.") });
+    lines.push({ id: "quiet", group: "attention", text: `No posts in the last ${INSIGHT_QUIET_DAYS} days.`, draft: brief("Pick up where you left off."), implies: "post_more" });
   }
 
   const order = { improving: 0, declining: 1, attention: 2 } as const;

@@ -305,6 +305,13 @@ describe("metaInsightActions", () => {
     const lines = run({ mediaViews: 10_000, postEngagements: 10 }, { mediaViews: 100, postEngagements: 100 }, 0);
     expect(lines.map((l) => l.group)).toEqual(["improving", "declining", "attention"]);
   });
+  it("flags the lines that tell the merchant to post more, and only those", () => {
+    expect(run({ mediaViews: 50 }, { mediaViews: 100 }, 1)[0]!.implies).toBe("post_more");
+    expect(run({ mediaViews: 50 }, { mediaViews: 100 }, 2)[0]!.implies).toBeUndefined();
+    expect(run({ mediaViews: 50 }, { mediaViews: 100 }, null)[0]!.implies).toBeUndefined();
+    expect(run({}, {}, 0)[0]!.implies).toBe("post_more");
+    expect(run({ mediaViews: 125 }, { mediaViews: 100 })[0]!.implies).toBeUndefined();
+  });
   it("a fall that already says post more often is not repeated by the quiet line", () => {
     expect(run({ mediaViews: 50 }, { mediaViews: 100 }, 0).map((l) => l.id)).toEqual(["reach_down"]);
   });
