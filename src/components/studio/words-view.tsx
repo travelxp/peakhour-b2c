@@ -250,8 +250,11 @@ export function WordsUseSheet({ open, onOpenChange, creativeId, preview }: { ope
   const mobile = useIsMobile();
   // An option that was already posted or scheduled asks first; every other starts at the channels. The first step is read from the option, so it is right whenever the sheet opens.
   const [chosen, setChosen] = useState<"channels" | "post" | null>(null);
-  const used = sentState(preview?.sent) !== null;
-  const step: "again" | "channels" | "post" = chosen ?? (used ? "again" : "channels");
+  // Latched when the sheet opens: a refetch that finds the option sent meanwhile must not move the screen under the person.
+  const [firstStep, setFirstStep] = useState<"again" | "channels" | null>(null);
+  if (!open && firstStep !== null) setFirstStep(null);
+  else if (open && preview && firstStep === null) setFirstStep(sentState(preview.sent) !== null ? "again" : "channels");
+  const step: "again" | "channels" | "post" = chosen ?? firstStep ?? "channels";
   const setStep = (s: "channels" | "post") => setChosen(s);
   const close = (o: boolean) => {
     if (!o) setChosen(null);
@@ -275,7 +278,7 @@ export function WordsUseSheet({ open, onOpenChange, creativeId, preview }: { ope
 export function WordsAgain({ sent, onYes, onNo }: { sent: WordsSent | null | undefined; onYes: () => void; onNo: () => void }) {
   return (
     <div className="flex flex-col gap-4" data-slot="studio-words-again">
-      <p className="text-sm">{sentLine(sent)}</p>
+      <p className="text-sm">{sentLine(sent)}.</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button type="button" className="h-12" onClick={onYes}>
           {W.again.yes}

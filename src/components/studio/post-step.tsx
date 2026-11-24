@@ -345,7 +345,9 @@ export function PostStep({
       void qc.invalidateQueries({ queryKey: ["scheduler:items"] });
       const ok = new Set(results.filter((r) => r.published).map((r) => r.channel));
       const verIds = versions.filter((v) => ok.has(v.channel)).map((v) => v.id);
-      await confirm(verIds, "published", [...ok]);
+      // a picture's record is waited for (as before); a words option's is bookkeeping and never holds the answer back
+      const recorded = confirm(verIds, "published", [...ok]);
+      if (!words) await recorded;
       const failed = results.filter((r) => !r.published).map((r) => channelLabel(r.channel));
       if (failed.length === 0 && results.length > 0) {
         setFailure(undefined);
@@ -392,7 +394,7 @@ export function PostStep({
       hideListingOption
       onScheduled={(r) => {
         // only the channels the plan was committed for are recorded, never every channel the sheet offered
-        void confirm(ids, "scheduled", [...new Set(r.resolvedTimes.map((t) => t.channel as string))]);
+        void confirm(ids, "scheduled", [...new Set(r.resolvedTimes.map((t) => t.channel))]);
         const at = r.resolvedTimes[0]?.scheduledAtUtc;
         setDone({ text: P.scheduled(at ? new Date(at).toLocaleString() : "") });
       }}

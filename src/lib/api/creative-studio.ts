@@ -357,8 +357,6 @@ export interface OrganicHandoff {
   media: Array<{ versionId: string; mediaId: string; url: string }>;
   caption: PostCaption;
   disclosure: string;
-  /** Words only: where this option already went (null while nowhere). */
-  sent?: WordsSent | null;
 }
 
 export interface AdHandoff {
