@@ -116,6 +116,18 @@ describe("FU-5: paused for Peaks, or the monthly limit reached", () => {
     expect(bar()!.textContent).not.toMatch(/[₹$£€]/);
   });
 
+  it("a member who cannot add Peaks sees the pause but no link, and nothing is paused when no job is on", async () => {
+    h.role = "member";
+    await mount(status({ pause: paused, monthlyCapPeaks: 5000 }, ["weekly_plan"]));
+    expect(bar()!.textContent).toContain("Paused: not enough Peaks.");
+    expect(host.querySelector('[data-testid="auto-write-topup"]')).toBeNull();
+    act(() => root.unmount());
+    host.remove();
+    h.role = "admin";
+    await mount(status({ pause: paused, monthlyCapPeaks: 5000 }, []));
+    expect(bar()).toBeNull();
+  });
+
   it("the paused line is a sentence a person can read: one job, a day, a full stop", () => {
     // the day is the page's own date label, whatever the machine's language
     const DAY = formatDateLabel("2026-11-20T12:00:00.000Z", "UTC");

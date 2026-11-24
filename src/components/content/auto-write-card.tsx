@@ -174,14 +174,17 @@ export function AutoWriteCardView(p: ViewProps) {
             );
           })}
         </ul>
-        {status.pause ? (
+        {/* nothing is paused when no job is on (the api sends none then either); the link goes only to someone who can add Peaks */}
+        {status.pause && status.jobs.some((j) => j.enabled) ? (
           <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100" data-testid="auto-write-paused">
             <p>
               <span className="font-medium">{AUTO_WRITE_COPY.pausedTitle}</span> {pauseLine(status.pause)}
             </p>
-            <Link href={TOP_UP_HREF} className="mt-1 inline-block font-medium underline underline-offset-2" data-testid="auto-write-topup">
-              {AUTO_WRITE_COPY.topUp}
-            </Link>
+            {p.canChange ? (
+              <Link href={TOP_UP_HREF} className="mt-1 inline-block font-medium underline underline-offset-2" data-testid="auto-write-topup">
+                {AUTO_WRITE_COPY.topUp}
+              </Link>
+            ) : null}
           </div>
         ) : null}
         {status.limitReached ? (
