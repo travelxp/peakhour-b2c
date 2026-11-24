@@ -167,6 +167,12 @@ export function expiresOn(iso: string): string | null {
   return formatDateLabel(d, Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
+/** "Peakhour wrote this from your weekly plan": the api's label, then its reason. A reason that is empty leaves just the label. */
+export function autoWriteText(a: { label: string; reason: string }): string {
+  const reason = a.reason.trim();
+  return reason ? `${a.label} from ${reason}` : a.label;
+}
+
 function Row({ item }: { item: NeedsOkItem }) {
   const expires = item.expiresAt ? expiresOn(item.expiresAt) : null;
   return (
@@ -178,6 +184,11 @@ function Row({ item }: { item: NeedsOkItem }) {
         <span className="block truncate text-sm font-medium">{item.title}</span>
         <span className="block text-sm text-muted-foreground">{item.why}</span>
         {item.createdAt && <span className="block text-xs text-muted-foreground">Made {formatRelative(item.createdAt)}</span>}
+        {item.autoWrite && (
+          <span className="line-clamp-2 text-xs text-muted-foreground" data-testid="needs-ok-auto-write">
+            {autoWriteText(item.autoWrite)}
+          </span>
+        )}
         {expires && <span className="block text-xs text-muted-foreground">Expires {expires}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-label">

@@ -19,6 +19,8 @@ export interface WhatChangedLine {
   text: string;
   /** Present when the line implies an action. */
   draft?: WhatChangedDraft;
+  /** Set when the line already tells the merchant to post more often: a second line that says so is dropped by this flag, never by its words. */
+  implies?: "post_more";
 }
 
 export interface ChannelWhatChanged {

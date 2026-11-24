@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const { NeedsOkScreen, POST_SOMETHING_HREF, expiresOn } = await import("./needs-ok-screen");
+const { NeedsOkScreen, POST_SOMETHING_HREF, expiresOn, autoWriteText } = await import("./needs-ok-screen");
 
 const item = (over: Partial<NeedsOkItem> & Pick<NeedsOkItem, "id" | "title" | "href">): NeedsOkItem => ({
   source: "scheduled_posts",
@@ -134,6 +134,34 @@ describe("NeedsOkScreen", () => {
     expect(rows[0]).toContain(`Expires ${expiresOn("2026-11-30T12:00:00.000Z")}`);
     expect(rows[1]).not.toContain("Expires");
     expect(rows[2]).not.toContain("Expires");
+  });
+
+  it("★FU-5: an automatic draft says 'Peakhour wrote this' and why, beside its expiry; a draft nobody wrote automatically says neither", async () => {
+    h.get.mockResolvedValue(
+      answer([
+        group({
+          source: "repurposed",
+          label: "Repurposed posts",
+          items: [
+            item({ id: "a", source: "repurposed", title: "Monday ideas", href: "/dashboard/content/repurposed/a", expiresAt: "2026-11-30T12:00:00.000Z", autoWrite: { job: "weekly_plan", label: "Peakhour wrote this", reason: "your weekly plan" } }),
+            item({ id: "b", source: "repurposed", title: "Ten tips", href: "/dashboard/content/repurposed/b", autoWrite: { job: "new_blog_post", label: "Peakhour wrote this", reason: "your new blog post Ten tips" } }),
+            item({ id: "c", source: "repurposed", title: "Manual one", href: "/dashboard/content/repurposed/c", expiresAt: null }),
+          ],
+        }),
+      ]),
+    );
+    await mount();
+    const rows = [...container.querySelectorAll("a")].map((a) => a.textContent ?? "");
+    expect(rows[0]).toContain("Peakhour wrote this from your weekly plan");
+    expect(rows[0]).toContain(`Expires ${expiresOn("2026-11-30T12:00:00.000Z")}`);
+    expect(rows[1]).toContain("Peakhour wrote this from your new blog post Ten tips");
+    expect(rows[2]).not.toContain("Peakhour wrote this");
+    expect(container.querySelectorAll('[data-testid="needs-ok-auto-write"]')).toHaveLength(2);
+  });
+
+  it("autoWriteText: the label then the reason, and only the label when the reason is empty", () => {
+    expect(autoWriteText({ label: "Peakhour wrote this", reason: "your best recent post" })).toBe("Peakhour wrote this from your best recent post");
+    expect(autoWriteText({ label: "Peakhour wrote this", reason: "  " })).toBe("Peakhour wrote this");
   });
 
   it("★expiresOn reads the date on the VIEWER's calendar: one instant is two different days on two sides of the date line", () => {

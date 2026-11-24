@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { driveAbilities } from "@/lib/drive/files-state";
+import { TOP_UP_HREF } from "@/lib/policy-builder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import {
   autoWriteErrorMessage,
   confirmSentence,
   parseCap,
+  pauseLine,
   priceLine,
   suggestedCap,
   usageLine,
@@ -171,6 +174,25 @@ export function AutoWriteCardView(p: ViewProps) {
             );
           })}
         </ul>
+        {/* nothing is paused when no job is on (the api sends none then either); the link goes only to someone who can add Peaks */}
+        {status.pause && status.jobs.some((j) => j.enabled) ? (
+          <div role="status" className="rounded-lg border border-warning/40 bg-warning/15 p-3 text-sm text-warning-on-tint" data-testid="auto-write-paused">
+            <p>
+              <span className="font-medium">{AUTO_WRITE_COPY.pausedTitle}</span> {pauseLine(status.pause)}
+            </p>
+            {p.canChange ? (
+              <Link href={TOP_UP_HREF} className="mt-1 inline-block font-medium underline underline-offset-2" data-testid="auto-write-topup">
+                {AUTO_WRITE_COPY.topUp}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+        {status.limitReached ? (
+          <div role="status" className="rounded-lg border p-3 text-sm" data-testid="auto-write-limit-reached">
+            <p className="font-medium">{AUTO_WRITE_COPY.limitReachedTitle}</p>
+            <p className="text-muted-foreground">{AUTO_WRITE_COPY.limitReachedNote}</p>
+          </div>
+        ) : null}
         {status.monthlyCapPeaks === null ? (
           <p className="text-sm text-muted-foreground" data-testid="auto-write-nolimit">
             {AUTO_WRITE_COPY.noLimit}
