@@ -66,11 +66,16 @@ const batch = (over: Partial<RepurposedBatch> = {}): RepurposedBatch => ({
   approveEffect: [effect({ platform: "linkedin", via: "approval_flow" }), effect({ platform: "x" })],
   mediaUrls: ["https://cdn.example.com/a.png", "https://cdn.example.com/b.png"],
   variants: [
-    { platform: "linkedin", text: "LinkedIn text", hook: null, hashtags: ["#menu"] },
-    { platform: "x", text: "X text", hook: null, hashtags: [] },
+    { platform: "linkedin", text: "LinkedIn text", hook: null, hashtags: ["#menu"], firstComment: null },
+    { platform: "x", text: "X text", hook: null, hashtags: [], firstComment: null },
   ],
   ...over,
 });
+
+// The api's rules table says which channels take a first comment and how long it may be: LinkedIn and X do here, Threads does not.
+const RULES = { rules: [{ key: "post:linkedin", label: "a LinkedIn post", firstComment: { maxLength: 1250 } }, { key: "post:x", label: "a post on X", firstComment: { maxLength: 280 } }, { key: "post:threads", label: "a Threads post" }] };
+/** Every get answers with `batch`, except the rules table. */
+const serve = (value: unknown) => h.get.mockImplementation(async (url: string) => (String(url).includes("/v1/media/rules") ? RULES : value));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -116,7 +121,7 @@ const { ApiError } = await import("@/lib/api");
 
 describe("RepurposedReview", () => {
   it("shows each channel's text and media, and per variant what approving does", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     await mount();
     expect([...container.querySelectorAll("h2")].map((e) => e.textContent)).toEqual(["LinkedIn", "X"]);
     expect(container.textContent).toContain("LinkedIn text");
@@ -129,7 +134,7 @@ describe("RepurposedReview", () => {
   });
 
   it("never says all of it goes out when part of it will not: names which variants, and why", async () => {
-    h.get.mockResolvedValue(
+    serve(
       batch({
         approveEffect: [
           effect({ platform: "linkedin", via: "approval_flow" }),
@@ -150,7 +155,7 @@ describe("RepurposedReview", () => {
   });
 
   it("Approve asks first, then posts to the approve route and shows the api's sentence", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: false, message: "Approved. Going out: LinkedIn, X.", variants: [] });
     await mount();
     await act(async () => button("Approve", container)!.click());
@@ -162,7 +167,7 @@ describe("RepurposedReview", () => {
   });
 
   it("Reject posts to the reject route", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockResolvedValue({ id: "b1", status: "discarded", alreadyDecided: false, message: "Rejected.", variants: [] });
     await mount();
     await approveThroughDialog("Reject");
@@ -170,7 +175,7 @@ describe("RepurposedReview", () => {
   });
 
   it("a refused decision shows the api's sentence as an error", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockRejectedValue(new ApiError("EXPIRED", "These drafts waited too long for an answer.", 409));
     await mount();
     await approveThroughDialog();
@@ -178,7 +183,7 @@ describe("RepurposedReview", () => {
   });
 
   it("a batch already decided shows the sentence and no buttons", async () => {
-    h.get.mockResolvedValue(batch({ status: "approved", decidedVia: "whatsapp", canDecide: false, approveEffect: [] }));
+    serve(batch({ status: "approved", decidedVia: "whatsapp", canDecide: false, approveEffect: [] }));
     await mount();
     expect(container.textContent).toContain("Approved on WhatsApp. Nothing more to do here.");
     expect(button("Approve", container)).toBeUndefined();
@@ -187,7 +192,7 @@ describe("RepurposedReview", () => {
   });
 
   it("a batch past its window says so and offers no decision", async () => {
-    h.get.mockResolvedValue(batch({ canDecide: false, approveEffect: [] }));
+    serve(batch({ canDecide: false, approveEffect: [] }));
     await mount();
     expect(container.textContent).toContain("waited too long");
     expect(button("Approve", container)).toBeUndefined();
@@ -211,7 +216,7 @@ describe("RepurposedReview, not found and load errors", () => {
   });
 
   it("encodes the id in the url", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     await mount("../x");
     expect(h.get).toHaveBeenCalledWith("/v1/content/repurposed/..%2Fx");
   });
@@ -219,7 +224,7 @@ describe("RepurposedReview, not found and load errors", () => {
 
 describe("★RepurposedReview, one decision at a time", () => {
   it("while a decision (and its refetch) is in flight both decision buttons are disabled, the area is aria-busy, and a second confirm is ignored", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     let release!: (v: unknown) => void;
     h.post.mockReturnValue(new Promise((r) => (release = r)));
     await mount();
@@ -240,7 +245,8 @@ describe("★RepurposedReview, one decision at a time", () => {
   it("the buttons stay disabled until the refetch after the decision lands", async () => {
     let refetches = 0;
     let finishRefetch!: (v: unknown) => void;
-    h.get.mockImplementation(() => {
+    h.get.mockImplementation((url: string) => {
+      if (String(url).includes("/v1/media/rules")) return Promise.resolve(RULES);
       refetches++;
       if (refetches === 1) return Promise.resolve(batch());
       return new Promise((r) => (finishRefetch = r)); // the post-decision refetch, held
@@ -259,7 +265,7 @@ describe("★RepurposedReview, one decision at a time", () => {
   });
 
   it("an answer that nothing changed (already approved elsewhere) is shown as information, not as success", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: true, message: "Monsoon menu ideas is already approved. Nothing changed.", variants: [] });
     await mount();
     await approveThroughDialog();
@@ -268,7 +274,7 @@ describe("★RepurposedReview, one decision at a time", () => {
   });
 
   it("after a decision Needs your OK, this batch and Home's summary are all refetched", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockResolvedValue({ id: "b1", status: "discarded", alreadyDecided: false, message: "Rejected.", variants: [] });
     await mount();
     const spy = vi.spyOn(client, "invalidateQueries");
@@ -283,7 +289,7 @@ describe("★RepurposedReview, one decision at a time", () => {
 describe("RepurposedReview, role", () => {
   it.each(["viewer", ""])("a %s sees the drafts and one line why there is no Approve or Reject", async (role) => {
     h.role = role;
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     await mount();
     expect(container.textContent).toContain("LinkedIn text");
     expect(button("Approve", container)).toBeUndefined();
@@ -293,7 +299,7 @@ describe("RepurposedReview, role", () => {
 
   it.each(["editor", "admin", "owner"])("%s may decide", async (role) => {
     h.role = role;
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     await mount();
     expect(button("Approve", container)).toBeDefined();
   });
@@ -301,13 +307,13 @@ describe("RepurposedReview, role", () => {
 
 describe("RepurposedReview, accessibility", () => {
   it("pictures say which one of how many", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     await mount();
     expect([...container.querySelectorAll("img")].map((i) => i.getAttribute("alt"))).toEqual(["Picture 1 of 2", "Picture 2 of 2"]);
   });
 
   it("the polite live region exists before the result, then holds it, and focus moves to it", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: false, message: "Approved. Going out: X.", variants: [] });
     await mount();
     const region = container.querySelector("[role=status][aria-live=polite]") as HTMLElement;
@@ -320,7 +326,7 @@ describe("RepurposedReview, accessibility", () => {
   });
 
   it("a refusal is announced in the same region and takes focus", async () => {
-    h.get.mockResolvedValue(batch());
+    serve(batch());
     h.post.mockRejectedValue(new ApiError("CHANGED", "Just changed by someone else.", 409));
     await mount();
     await approveThroughDialog();
@@ -339,5 +345,119 @@ describe("closedSentence", () => {
     ["failed", null, "These drafts are no longer waiting for your approval."],
   ])("%s via %s", (status, via, want) => {
     expect(closedSentence(batch({ status, decidedVia: via, canDecide: false }))).toBe(want);
+  });
+});
+
+describe("RepurposedReview: the first comment", () => {
+  const withSuggestions = () =>
+    batch({
+      variants: [
+        { platform: "linkedin", text: "LinkedIn text", hook: null, hashtags: [], firstComment: "Read more: https://example.com/menu" },
+        { platform: "x", text: "X text", hook: null, hashtags: [], firstComment: null },
+      ],
+    });
+  const boxes = () => [...container.querySelectorAll("[data-testid=first-comment-field] textarea")] as HTMLTextAreaElement[];
+  const type = async (box: HTMLTextAreaElement, text: string) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    await act(async () => {
+      setter.call(box, text);
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("prefills each box with the writer's suggestion, and leaves a channel with none empty", async () => {
+    serve(withSuggestions());
+    await mount();
+    expect(boxes().map((b) => b.value)).toEqual(["Read more: https://example.com/menu", ""]);
+  });
+
+  it("shows no box for a channel that takes none", async () => {
+    serve(
+      batch({
+        variants: [
+          { platform: "threads", text: "T text", hook: null, hashtags: [], firstComment: null },
+          { platform: "x", text: "X text", hook: null, hashtags: [], firstComment: null },
+        ],
+        approveEffect: [],
+      }),
+    );
+    await mount();
+    expect(boxes()).toHaveLength(1);
+  });
+
+  it("approving with the suggestion untouched sends the same request it always did, with no body", async () => {
+    serve(withSuggestions());
+    h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: false, message: "Approved.", variants: [] });
+    await mount();
+    await approveThroughDialog();
+    expect(h.post).toHaveBeenCalledWith("/v1/content/repurposed/b1/approve");
+  });
+
+  it("an edit goes with the approval for its own channel only", async () => {
+    serve(withSuggestions());
+    h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: false, message: "Approved.", variants: [] });
+    await mount();
+    await type(boxes()[1]!, "What do you steep?");
+    await approveThroughDialog();
+    expect(h.post).toHaveBeenLastCalledWith("/v1/content/repurposed/b1/approve", { firstComments: { x: "What do you steep?" } });
+  });
+
+  it("clearing the suggestion is sent as a blank, so nothing is posted", async () => {
+    serve(withSuggestions());
+    h.post.mockResolvedValue({ id: "b1", status: "approved", alreadyDecided: false, message: "Approved.", variants: [] });
+    await mount();
+    await type(boxes()[0]!, "");
+    await approveThroughDialog();
+    expect(h.post).toHaveBeenLastCalledWith("/v1/content/repurposed/b1/approve", { firstComments: { linkedin: "" } });
+  });
+
+  it("a comment over the channel's limit shows how far over and holds the Approve button", async () => {
+    serve(withSuggestions());
+    await mount();
+    await type(boxes()[1]!, "w".repeat(285));
+    expect(container.textContent).toContain("5 over the 280 characters this channel takes");
+    expect(container.querySelector("[role=alert]")?.textContent).toBeTruthy();
+    expect(container.textContent).toContain("Shorten it to approve.");
+    expect(button("Approve", container)!.disabled).toBe(true);
+    await type(boxes()[1]!, "w".repeat(280));
+    expect(button("Approve", container)!.disabled).toBe(false);
+  });
+
+  it("Reject sends no first comments, and a batch that can no longer be decided shows no boxes", async () => {
+    serve(withSuggestions());
+    h.post.mockResolvedValue({ id: "b1", status: "discarded", alreadyDecided: false, message: "Rejected.", variants: [] });
+    await mount();
+    await type(boxes()[1]!, "typed then rejected");
+    await act(async () => button("Reject", container)!.click());
+    await act(async () => button("Reject", dialog())!.click());
+    await flush();
+    expect(h.post).toHaveBeenLastCalledWith("/v1/content/repurposed/b1/reject");
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    serve({ ...withSuggestions(), canDecide: false, approveEffect: [], status: "approved" });
+    await mount();
+    expect(boxes()).toHaveLength(0);
+  });
+
+  it("two variants on one channel get one box (the api reads one comment per channel), and the old twitter key is X", async () => {
+    serve(
+      batch({
+        variants: [
+          { platform: "twitter", text: "first", hook: null, hashtags: [], firstComment: "first suggestion" },
+          { platform: "x", text: "second", hook: null, hashtags: [], firstComment: "second suggestion" },
+        ],
+        approveEffect: [],
+      }),
+    );
+    await mount();
+    expect(boxes().map((b) => b.value)).toEqual(["first suggestion"]);
+  });
+
+    it("a viewer who cannot approve sees no boxes", async () => {
+    h.role = "viewer";
+    serve(withSuggestions());
+    await mount();
+    expect(boxes()).toHaveLength(0);
   });
 });

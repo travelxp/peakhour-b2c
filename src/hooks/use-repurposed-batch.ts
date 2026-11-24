@@ -17,6 +17,8 @@ export interface RepurposedVariant {
   text: string;
   hook: string | null;
   hashtags: string[];
+  /** The comment the writer suggests Peakhour adds under this post once it is live, already cut to the channel's limit; null when none (or the channel takes none). */
+  firstComment: string | null;
 }
 
 /** What approving does for one variant: the api's answer, from the same rules the approval applies. */
@@ -69,11 +71,21 @@ export function useRepurposedBatch(id: string) {
   });
 }
 
+/** A decision, with (for an approval) the first comments the person left different from what was suggested: channel -> text, blank to clear. */
+export type RepurposedDecisionInput = { decision: "approve"; firstComments?: Record<string, string> } | { decision: "reject" };
+
 export function useDecideRepurposedBatch(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (decision: "approve" | "reject") =>
-      api.post<RepurposedDecision>(`/v1/content/repurposed/${encodeURIComponent(id)}/${decision}`),
+    mutationFn: (input: RepurposedDecisionInput) => {
+      const { decision } = input;
+      const firstComments = input.decision === "approve" ? input.firstComments : undefined;
+      const url = `/v1/content/repurposed/${encodeURIComponent(id)}` + (decision === "approve" ? "/approve" : "/reject");
+      // No body unless the person changed a first comment: an approval with nothing to say about it is the same request it always was.
+      return firstComments && Object.keys(firstComments).length > 0
+        ? api.post<RepurposedDecision>(url, { firstComments })
+        : api.post<RepurposedDecision>(url);
+    },
     // Returned, so the mutation stays pending until the refetches land: the buttons come back as the batch's new state,
     // never as the old one (a press in that gap would be a second, conflicting decision).
     onSettled: () =>
