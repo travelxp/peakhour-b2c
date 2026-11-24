@@ -27,9 +27,96 @@ export function posterTime(durationSeconds: number): number {
 
 const ABSENT = {};
 
-/** Width and height of an image file. A file that is not a readable image (or not an image) answers nothing. */
-export async function probeDimensions(file: File): Promise<{ width?: number; height?: number }> {
+/** What the browser can say of a file before it is sent: a picture's or video's shape, a video's length, a PDF's pages. Each is absent when it cannot be read. */
+export interface FileMeasure {
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  pageCount?: number;
+}
+
+/**
+` * The PDF dictionary (`<< ... >>`) that holds position `at`, nesting counted, so a `/Resources << ... >>` inside it does not cut it short. Undefined when
+ * there is none within a bounded distance.
+ */
+function enclosingDict(text: string, at: number): string | undefined {
+  let depth = 0;
+  let open = -1;
+  for (let i = at - 1; i > 0 && at - i < 4000; i--) {
+    if (text[i] === ">" && text[i - 1] === ">") {
+      depth++;
+      i--;
+    } else if (text[i] === "<" && text[i - 1] === "<") {
+      if (depth === 0) {
+        open = i - 1;
+        break;
+      }
+      depth--;
+      i--;
+    }
+  }
+  if (open < 0) return undefined;
+  depth = 0;
+  for (let i = open + 2; i < text.length - 1 && i - open < 8000; i++) {
+    if (text[i] === "<" && text[i + 1] === "<") {
+      depth++;
+      i++;
+    } else if (text[i] === ">" && text[i + 1] === ">") {
+      if (depth === 0) return text.slice(open + 2, i);
+      depth--;
+      i++;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Pages in a PDF, read from its bytes with no library: the page tree's ROOT is the `/Type /Pages` dictionary with no `/Parent`, and its `/Count` is the
+ * document's pages. A bookmark tree (`/Outlines`) also carries a `/Count`, and every inner node of the page tree carries a smaller one, so only a `/Pages`
+ * dictionary without a `/Parent` is read; a PDF saved in increments keeps older roots, and the LAST one is the live one. A PDF that keeps its page tree inside a
+ * compressed object stream (PDF 1.5 and later, often) shows no such dictionary in the clear: nothing is said then, and the limit is simply not checked (the
+ * verdict is "not fully checked", never a refusal). Pure.
+ */
+
+export function pdfPageCountOf(text: string): number | undefined {
+  let pages: number | undefined;
+  for (const m of text.matchAll(/\/Type\s*\/Pages\b/g)) {
+    const dict = enclosingDict(text, m.index ?? 0);
+    if (dict === undefined) continue;
+    // only the dictionary's own keys: what sits in a nested dictionary (a /Resources, an /Mark) is not the node's
+    let own = dict;
+    for (let i = 0; i < 20; i++) {
+      const next = own.replace(/<<[^<>]*>>/g, "");
+      if (next === own) break;
+      own = next;
+    }
+    if (/\/Parent\b/.test(own)) continue;
+    const count = /\/Count\s+(\d{1,6})\b/.exec(own);
+    if (count && Number(count[1]) >= 1) pages = Number(count[1]);
+  }
+  return pages;
+}
+
+/** The biggest PDF the browser reads for its pages (a larger one is not read, and its pages are not checked): the whole file is held as text while it is read. */
+export const PDF_PROBE_MAX_BYTES = 40 * 1024 * 1024;
+
+/** A PDF's page count, or nothing. */
+export async function probePdfPages(file: File): Promise<number | undefined> {
+  if (typeof window === "undefined" || file.type !== "application/pdf" || file.size > PDF_PROBE_MAX_BYTES) return undefined;
+  try {
+    return pdfPageCountOf(new TextDecoder("latin1").decode(await file.arrayBuffer()));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Width and height of an image file; width, height and length of a video; pages of a PDF. A file that is not readable answers nothing. */
+export async function probeDimensions(file: File): Promise<FileMeasure> {
   if (typeof window === "undefined") return ABSENT;
+  if (file.type === "application/pdf") {
+    const pageCount = await probePdfPages(file);
+    return pageCount !== undefined ? { pageCount } : ABSENT;
+  }
   if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
     try {
       const bmp = await createImageBitmap(file);
@@ -43,7 +130,8 @@ export async function probeDimensions(file: File): Promise<{ width?: number; hei
   if (file.type.startsWith("video/")) {
     const v = await loadVideo(file).catch(() => null);
     if (!v) return ABSENT;
-    const out = { width: v.video.videoWidth, height: v.video.videoHeight };
+    const d = v.video.duration;
+    const out = { width: v.video.videoWidth, height: v.video.videoHeight, ...(Number.isFinite(d) && d > 0 ? { durationSeconds: d } : {}) };
     v.dispose();
     return out.width > 0 ? out : ABSENT;
   }

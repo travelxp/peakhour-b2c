@@ -32,6 +32,8 @@ export interface DriveFile {
   height?: number;
   /** A video's length. */
   durationSeconds?: number;
+  /** A document's pages, when they could be read. */
+  pageCount?: number;
   sizeBytes: number;
   source: string;
   createdAt: string;

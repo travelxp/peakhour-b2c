@@ -22,7 +22,8 @@ import {
 } from "@/components/composer";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { FirstCommentField } from "@/components/composer/first-comment-field";
-import { useMediaRules } from "@/lib/media-rules";
+import { useMediaRule, useMediaRules } from "@/lib/media-rules";
+import { Switch } from "@/components/ui/switch";
 import { firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { MediaImage } from "@/components/shared/media-image";
@@ -84,6 +85,11 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const [media, setMedia] = useState<(MetaMedia & { name?: string })[]>([]);
   const [link, setLink] = useState("");
   const [firstComment, setFirstComment] = useState("");
+  const [reel, setReel] = useState(false);
+  // Whether this channel can post a video as a Reel is the api's answer (its rules row carries a Reel rule), not a channel name held here.
+  const reelRule = useMediaRule({ kind: "post", channel });
+  const canReel = reelRule.state === "ready" && reelRule.rule.reel !== undefined;
+  const asReel = canReel && reel;
   const firstCommentRule = firstCommentRuleOf(useMediaRules().data, channel);
   const [mode, setMode] = useState<"compose" | "schedule">("compose");
   const [failure, setFailure] = useState<{ message: string; calendar: boolean; reconnect?: boolean } | null>(null);
@@ -103,14 +109,16 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const caretRef = useRef(0);
 
   // a channel whose rules row has no first comment never sends one, whatever was typed before the table loaded
-  const draft = useMemo(() => ({ text, media, link, ...(firstCommentRule ? { firstComment } : {}) }), [text, media, link, firstComment, firstCommentRule]);
+  const draft = useMemo(() => ({ text, media, link, ...(firstCommentRule ? { firstComment } : {}), ...(asReel ? { reel: true } : {}) }), [text, media, link, firstComment, firstCommentRule, asReel]);
   const problems = useMemo(() => {
     const all = metaPostProblems(channel, draft);
     // a first comment over what the channel takes stops the post here, as an over-long post does, not after it is live
+    // a Reel is ONE video on its own: the switch with pictures (or two files) on the post would send them as a photo post
+    if (asReel && media.length > 0 && !(media.length === 1 && media[0]!.mime.startsWith("video/"))) all.push("A Reel is one video on its own. Remove the other files, or turn the Reel switch off.");
     const tooLong = firstCommentOverBy(firstCommentRule, firstComment);
     if (tooLong > 0) all.push(`The first comment is ${tooLong} character${tooLong === 1 ? "" : "s"} over what ${META_COMPOSE_RULES[channel].label} takes.`);
     return all;
-  }, [channel, draft, firstCommentRule, firstComment]);
+  }, [channel, draft, firstCommentRule, firstComment, asReel, media]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
   const touched = text !== "" || media.length > 0 || link !== "" || (firstCommentRule !== undefined && firstComment !== "");
   const blocked = problems.length > 0;
@@ -150,7 +158,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   );
   // Drop or paste pictures straight onto the composer: the same rules and the same upload engine as the picker.
   const { ref: dropRef, dragging: dropping, busy: adding } = useDropPaste<HTMLDivElement>({
-    destination: { kind: "post", channel },
+    destination: { kind: "post", channel, ...(asReel ? { as: "reel" as const } : {}) },
     attached: media.length,
     disabled: locked,
     onAdd: addAssets,
@@ -163,6 +171,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     setMedia([]);
     setLink("");
     setFirstComment("");
+    setReel(false);
     setCaret(0);
     caretRef.current = 0;
     setMode("compose");
@@ -475,7 +484,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
         {locked ? null : <EmojiPickerTrigger onInsert={insertSnippet} />}
         {locked ? null : (
           <DrivePicker
-            destination={{ kind: "post", channel }}
+            destination={{ kind: "post", channel, ...(asReel ? { as: "reel" as const } : {}) }}
             attached={media.length}
             addLabel="Add to post"
             onSelect={(assets) => {
@@ -488,6 +497,26 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           {rules.mediaRequired ? "A picture or video is needed." : "Pictures are optional."}
         </span>
       </div>
+
+      {canReel ? (
+        <div className="flex items-center gap-2" data-testid="meta-reel-switch">
+          <Switch
+            id="meta-reel"
+            checked={reel}
+            onCheckedChange={(v) => {
+              setReel(v);
+              // a video already on the post was judged by the other rule: take it off, so it is added again and checked against this one
+              setMedia((prev) => prev.filter((m) => !m.mime.startsWith("video/")));
+              edited();
+            }}
+            disabled={locked}
+          />
+          <Label htmlFor="meta-reel" className="text-sm">
+            Post a video as a Reel
+          </Label>
+          {reel ? <span className="text-micro text-muted-foreground">Vertical (9:16), 3 to 90 seconds. Turning this on or off takes off a video already added, so it is checked again.</span> : null}
+        </div>
+      ) : null}
 
       <FirstCommentField
         channel={channel}

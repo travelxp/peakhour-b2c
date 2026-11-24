@@ -41,6 +41,11 @@ export async function measureFile(file: File, seam?: UploadSeam): Promise<FileFa
     const v = await probeVideo(file).catch(() => ({}) as Awaited<ReturnType<typeof probeVideo>>);
     return { ...facts, ...v };
   }
+  if (file.type === "application/pdf") {
+    const pages = await (seam?.deps?.probe ?? probeDimensions)(file).catch(() => ({}) as { pageCount?: number });
+    if (pages.pageCount !== undefined) facts.pageCount = pages.pageCount;
+    return facts;
+  }
   if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
     const dims = await (seam?.deps?.probe ?? probeDimensions)(file).catch(() => ({}) as { width?: number; height?: number });
     if (dims.width && dims.height) {
@@ -199,6 +204,7 @@ export function driveFileOf(u: UploadedWithFacts): DriveFile {
     ...(u.facts.width ? { width: u.facts.width } : {}),
     ...(u.facts.height ? { height: u.facts.height } : {}),
     ...(u.facts.durationSeconds !== undefined ? { durationSeconds: u.facts.durationSeconds } : {}),
+    ...(u.facts.pageCount !== undefined ? { pageCount: u.facts.pageCount } : {}),
     source: "uploaded",
     createdAt: new Date().toISOString(),
   };
@@ -460,7 +466,7 @@ export function LinkTab({
     try {
       const saved = await save({ from: "draft_asset", url });
       const m = await readFile(saved.mediaId);
-      const facts: FileFacts = { mimeType: m.mimeType, sizeBytes: m.sizeBytes, ...(m.width ? { width: m.width } : {}), ...(m.height ? { height: m.height } : {}), ...(m.durationSeconds !== undefined ? { durationSeconds: m.durationSeconds } : {}) };
+      const facts: FileFacts = { mimeType: m.mimeType, sizeBytes: m.sizeBytes, ...(m.width ? { width: m.width } : {}), ...(m.height ? { height: m.height } : {}), ...(m.durationSeconds !== undefined ? { durationSeconds: m.durationSeconds } : {}), ...(m.pageCount !== undefined ? { pageCount: m.pageCount } : {}) };
       const v = judgeFile(rule, facts);
       if (v.state === "refused" || v.state === "fixable") {
         setProblem(`It is saved in Drive, but it was not added. ${verdictText(v)}`);
@@ -487,6 +493,7 @@ export function LinkTab({
         ...(m.width ? { width: m.width } : {}),
         ...(m.height ? { height: m.height } : {}),
         ...(m.durationSeconds !== undefined ? { durationSeconds: m.durationSeconds } : {}),
+        ...(m.pageCount !== undefined ? { pageCount: m.pageCount } : {}),
         source: "uploaded",
         createdAt: new Date().toISOString(),
       });

@@ -10,7 +10,7 @@ import {
   type ResumeResponse,
 } from "@/lib/api/media-uploads";
 import { sha256OfFile } from "./sha256";
-import { captureVideoPoster, probeDimensions } from "./probe-file";
+import { captureVideoPoster, probeDimensions, type FileMeasure } from "./probe-file";
 
 /**
  * Drive uploads (D4): multipart, direct to R2, resumable, with a per-file progress that does not depend on any screen.
@@ -64,7 +64,7 @@ export interface UploadDeps {
   abort: typeof abortUpload;
   putPart: (url: string, body: Blob, onLoaded: (loaded: number) => void, signal: AbortSignal) => Promise<void>;
   hash: (file: File) => Promise<string>;
-  probe: (file: File) => Promise<{ width?: number; height?: number }>;
+  probe: (file: File) => Promise<FileMeasure>;
   poster: (file: File) => Promise<File | null>;
   attachPoster: (videoId: string, posterId: string) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
@@ -133,7 +133,7 @@ interface Internal {
   controller: AbortController;
   visibility?: "published" | "private";
   hash?: string;
-  dims?: { width?: number; height?: number };
+  dims?: FileMeasure;
   uploadId?: string;
   settle: Array<() => void>;
 }
@@ -319,6 +319,9 @@ export class UploadQueue {
         contentHash: i.hash,
         ...(i.visibility ? { visibility: i.visibility } : {}),
         ...(i.dims?.width ? { width: i.dims.width, height: i.dims.height } : {}),
+        // a video's length and a document's pages go with the upload, so the picker can judge the file against a channel's limits later
+        ...(i.dims?.durationSeconds !== undefined ? { durationSeconds: i.dims.durationSeconds } : {}),
+        ...(i.dims?.pageCount !== undefined ? { pageCount: i.dims.pageCount } : {}),
       });
       if (init.deduped === false && signal.aborted) {
         // Cancelled while the api was starting the upload: the session exists now, so throw it away.

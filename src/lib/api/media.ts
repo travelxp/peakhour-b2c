@@ -58,6 +58,7 @@ export interface MediaItem {
   tags?: string[];
   collectionIds?: string[];
   durationSeconds?: number;
+  pageCount?: number;
   posterMediaId?: string;
   describedAt?: string;
   describeState: DescribeState;

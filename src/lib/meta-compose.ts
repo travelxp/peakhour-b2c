@@ -146,6 +146,8 @@ export interface MetaDraft {
   link: string;
   /** Added as the first comment once the post is live. Absent or blank = none. The api refuses it on a channel that takes none, so a caller sets it only where the rules table says so. */
   firstComment?: string;
+  /** The single video is made as a Reel (a channel whose rules row has a Reel rule offers the switch). */
+  reel?: boolean;
 }
 
 const isVideo = (m: MetaMedia) => m.mime.startsWith("video/");
@@ -199,8 +201,10 @@ export function buildMetaChannel(channel: MetaComposeChannel, draft: MetaDraft) 
   const link = channel === "facebook" ? draft.link.trim() : "";
   // The publisher tells a video from a picture by the address's file ending. A Drive address may not end in one, so a single Instagram
   // video is also SAID to be a Reel; without this it could go out as a picture and be refused.
-  const reel = channel === "instagram" && draft.media.length === 1 && isVideo(draft.media[0]!);
-  const channelOptions = { ...(link !== "" ? { link } : {}), ...(reel ? { mediaType: "REELS" } : {}) };
+  // The same goes for a Facebook video: SAID to be a video, or a Reel when the merchant chose that, so the publisher takes the right of its two flows.
+  const video = draft.media.length === 1 && isVideo(draft.media[0]!);
+  const mediaType = !video ? undefined : channel === "instagram" ? "REELS" : channel === "facebook" ? (draft.reel ? "REELS" : "VIDEO") : undefined;
+  const channelOptions = { ...(link !== "" ? { link } : {}), ...(mediaType ? { mediaType } : {}) };
   const firstComment = draft.firstComment?.trim() ?? "";
   return {
     channel,
