@@ -14,6 +14,12 @@ import type { AiActionContext, PlatformKey } from "./types";
  * ★ONCE PER BRIEF. The ref remembers the brief that was run, so a re-render, React's development double-effect or a parent that re-creates the
  * handler never makes a second call (a second call would be a second charge). A new brief is a new run.
  */
+/**
+ * ★ONCE PER BRIEF PER SESSION, not once per mount: choosing the channel again remounts the composer, and a remount that ran the brief again would be a second charge that
+ * overwrites the first draft. A brief whose call FAILED is let go, so Draft this post can be pressed again.
+ */
+const RUN_THIS_SESSION = new Set<string>();
+
 export function useBriefDraft(
   brief: string | undefined,
   platform: PlatformKey,
@@ -22,11 +28,15 @@ export function useBriefDraft(
   const ran = useRef<string | null>(null);
   // The handler changes identity with the composer's state; the effect must not re-run for that.
   const handler = useRef(onAiAction);
-  handler.current = onAiAction;
   useEffect(() => {
-    if (!brief || ran.current === brief) return;
+    handler.current = onAiAction;
+  });
+  useEffect(() => {
+    if (!brief || ran.current === brief || RUN_THIS_SESSION.has(`${platform}:${brief}`)) return;
     ran.current = brief;
+    RUN_THIS_SESSION.add(`${platform}:${brief}`);
     handler.current({ op: "compose", text: brief, platform }).catch((err: unknown) => {
+      RUN_THIS_SESSION.delete(`${platform}:${brief}`);
       // The brief stays in the box's place of nothing: the merchant can write it themselves or press Compose.
       toast.error("We could not write the draft", { description: err instanceof Error ? err.message : undefined });
     });

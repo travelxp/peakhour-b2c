@@ -23,10 +23,12 @@ export function WhatChangedCard({ channel }: { channel?: WhatChangedChannelKey }
     queryFn: () => whatChangedApi.read(channel),
     staleTime: 5 * 60_000,
     retry: false,
+    // no business yet (first paint): no request, no cached error under a key that is not a business
+    enabled: !!business,
   });
   // A failed read says nothing: this is advice on top of a page, and an error card about advice would be noise.
   if (q.isError) return null;
-  if (q.isLoading) return <Skeleton className="h-24 w-full" />;
+  if (q.isLoading || !business) return <Skeleton className="h-24 w-full" />;
   const channels = q.data ?? [];
   // One channel's card is silent until the channel has results to speak of (a page for a channel with no measured posts has no business saying "not enough
   // history"); once it has some, it says how far it is from enough. Results lists only channels that have something to say.

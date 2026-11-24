@@ -58,7 +58,7 @@ describe("writing the first draft from a brief", () => {
 
   it("a new brief is a new run", async () => {
     const run = vi.fn<Run>(async () => "draft");
-    await act(async () => root.render(<Probe brief="one" run={run} />));
+    await act(async () => root.render(<Probe brief="one-a" run={run} />));
     await act(async () => root.render(<Probe brief="two" run={run} />));
     expect(run).toHaveBeenCalledTimes(2);
   });
@@ -67,7 +67,27 @@ describe("writing the first draft from a brief", () => {
     const run = vi.fn<Run>(async () => {
       throw new Error("Not enough Peaks");
     });
-    await act(async () => root.render(<Probe brief="one" run={run} />));
+    await act(async () => root.render(<Probe brief="fails-1" run={run} />));
     expect(toast.error).toHaveBeenCalledWith("We could not write the draft", { description: "Not enough Peaks" });
+  });
+
+  it("a remount of the composer with the same brief is not a second charge", async () => {
+    const run = vi.fn<Run>(async () => "draft");
+    await act(async () => root.render(<Probe brief="remount-1" run={run} />));
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () => root.render(<Probe brief="remount-1" run={run} />));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("a brief whose write failed can be tried again", async () => {
+    const run = vi.fn<Run>(async () => {
+      throw new Error("down");
+    });
+    await act(async () => root.render(<Probe brief="retry-1" run={run} />));
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () => root.render(<Probe brief="retry-1" run={run} />));
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });
