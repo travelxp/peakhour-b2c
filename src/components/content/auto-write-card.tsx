@@ -184,7 +184,7 @@ export function AutoWriteCardView(p: ViewProps) {
             </Link>
           </div>
         ) : null}
-        {status.limitReached && !status.pause ? (
+        {status.limitReached ? (
           <div role="status" className="rounded-lg border p-3 text-sm" data-testid="auto-write-limit-reached">
             <p className="font-medium">{AUTO_WRITE_COPY.limitReachedTitle}</p>
             <p className="text-muted-foreground">{AUTO_WRITE_COPY.limitReachedNote}</p>

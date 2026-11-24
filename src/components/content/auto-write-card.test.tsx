@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { formatDateLabel } from "@/lib/scheduler/format";
 import { pauseLine, type AutoWriteInput, type AutoWriteJobKey, type AutoWriteStatus } from "@/lib/auto-write";
 
 const h = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), role: "admin" as string }));
@@ -116,9 +117,14 @@ describe("FU-5: paused for Peaks, or the monthly limit reached", () => {
   });
 
   it("the paused line is a sentence a person can read: one job, a day, a full stop", () => {
-    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 3 }, "UTC")).toBe("3 jobs were skipped since 20 Nov.");
-    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 1 }, "UTC")).toBe("1 job was skipped since 20 Nov.");
+    // the day is the page's own date label, whatever the machine's language
+    const DAY = formatDateLabel("2026-11-20T12:00:00.000Z", "UTC");
+    expect(DAY).toMatch(/20/);
+    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 3 }, "UTC")).toBe(`3 jobs were skipped since ${DAY}.`);
+    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: 1 }, "UTC")).toBe(`1 job was skipped since ${DAY}.`);
     expect(pauseLine({ since: "not a date", skipped: 2 })).toBe("2 jobs were skipped.");
+    // a count the api left out is one job, never "NaN jobs"
+    expect(pauseLine({ since: "2026-11-20T12:00:00.000Z", skipped: undefined as unknown as number }, "UTC")).toBe(`1 job was skipped since ${DAY}.`);
   });
 
   it("the monthly limit reached is a different message, and is not offered a top-up", async () => {
@@ -130,10 +136,10 @@ describe("FU-5: paused for Peaks, or the monthly limit reached", () => {
     expect(host.textContent).not.toContain("not enough Peaks");
   });
 
-  it("an empty wallet wins over the limit when both are true (the merchant can act on the wallet)", async () => {
+  it("when both are true both are said: an empty wallet and a reached limit are two different reasons", async () => {
     await mount(status({ pause: paused, limitReached: true, monthlyCapPeaks: 300 }, ["weekly_plan"]));
-    expect(bar()).not.toBeNull();
-    expect(host.querySelector('[data-testid="auto-write-limit-reached"]')).toBeNull();
+    expect(bar()!.textContent).toContain("Paused: not enough Peaks.");
+    expect(host.querySelector('[data-testid="auto-write-limit-reached"]')!.textContent).toContain("Monthly limit reached");
   });
 
   it("says neither when the api sends neither (an older api, or nothing is wrong)", async () => {

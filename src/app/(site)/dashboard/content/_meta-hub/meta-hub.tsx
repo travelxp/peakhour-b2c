@@ -359,7 +359,7 @@ function Overview({
         current: q.data,
         previous: prevQ.data,
         recentPosts: postsQ.data ? countRecentPosts(postsQ.data.map((r) => r.date)) : null,
-      }).map((l) => ({ id: l.id, group: l.group, text: l.text, draft: { channel, brief: l.draft }, ...(l.implies ? { implies: l.implies } : {}) }))
+      }).map((l) => ({ ...l, draft: { channel, brief: l.draft } }))
     : [];
 
   return (

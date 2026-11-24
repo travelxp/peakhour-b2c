@@ -5,6 +5,7 @@
  * nothing on its own before that. NO PRICE IS TYPED HERE: every number on screen is the api's, which reads the rate card. A price that is null (no row) is said, never
  * shown as 0 or hidden. Peaks only: no currency figure beside a price. Automatic work only ever writes DRAFTS into Needs your OK; a person approves.
  */
+import { formatDateLabel } from "@/lib/scheduler/format";
 import { parseCap, peaksWord } from "@/lib/wordpress-ai-images";
 
 export { parseCap, peaksWord };
@@ -121,11 +122,12 @@ export function priceLine(price: number | null): string | null {
   return price === null ? null : `Each draft costs ${peaksWord(price)}, and only when the draft is written.`;
 }
 
-/** "3 jobs were skipped since 20 Nov." Names the day in the viewer's own time zone (`timeZone` is for tests). */
+/** "3 jobs were skipped since Fri, 20 Nov." Names the day as the rest of the page does (`formatDateLabel`), in the viewer's own time zone (`timeZone` is for tests). */
 export function pauseLine(p: Pick<AutoWritePause, "since" | "skipped">, timeZone?: string): string {
   const d = new Date(p.since);
-  const since = Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(timeZone ? { timeZone } : {}) });
-  const n = Math.max(1, p.skipped);
+  const since = Number.isNaN(d.getTime()) ? null : formatDateLabel(d, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+  // a count that is missing or not a number is "1 job", never "NaN jobs"
+  const n = Number.isFinite(p.skipped) ? Math.max(1, Math.floor(p.skipped)) : 1;
   const jobs = n === 1 ? "1 job was skipped" : `${n} jobs were skipped`;
   return since ? `${jobs} since ${since}.` : `${jobs}.`;
 }

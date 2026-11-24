@@ -185,7 +185,7 @@ function Row({ item }: { item: NeedsOkItem }) {
         <span className="block text-sm text-muted-foreground">{item.why}</span>
         {item.createdAt && <span className="block text-xs text-muted-foreground">Made {formatRelative(item.createdAt)}</span>}
         {item.autoWrite && (
-          <span className="block text-xs text-muted-foreground" data-testid="needs-ok-auto-write">
+          <span className="block truncate text-xs text-muted-foreground" data-testid="needs-ok-auto-write">
             {autoWriteText(item.autoWrite)}
           </span>
         )}
