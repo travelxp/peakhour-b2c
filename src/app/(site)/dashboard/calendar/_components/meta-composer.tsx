@@ -21,6 +21,9 @@ import {
   type HashtagCandidate,
 } from "@/components/composer";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
+import { FirstCommentField } from "@/components/composer/first-comment-field";
+import { useMediaRules } from "@/lib/media-rules";
+import { firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { MediaImage } from "@/components/shared/media-image";
 import { ApiError } from "@/lib/api";
@@ -80,6 +83,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const [caret, setCaret] = useState(0);
   const [media, setMedia] = useState<(MetaMedia & { name?: string })[]>([]);
   const [link, setLink] = useState("");
+  const [firstComment, setFirstComment] = useState("");
+  const firstCommentRule = firstCommentRuleOf(useMediaRules().data, channel);
   const [mode, setMode] = useState<"compose" | "schedule">("compose");
   const [failure, setFailure] = useState<{ message: string; calendar: boolean; reconnect?: boolean } | null>(null);
   const [done, setDone] = useState<Published | null>(null);
@@ -97,10 +102,17 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const caretRef = useRef(0);
 
-  const draft = useMemo(() => ({ text, media, link }), [text, media, link]);
-  const problems = useMemo(() => metaPostProblems(channel, draft), [channel, draft]);
+  // a channel whose rules row has no first comment never sends one, whatever was typed before the table loaded
+  const draft = useMemo(() => ({ text, media, link, ...(firstCommentRule ? { firstComment } : {}) }), [text, media, link, firstComment, firstCommentRule]);
+  const problems = useMemo(() => {
+    const all = metaPostProblems(channel, draft);
+    // a first comment over what the channel takes stops the post here, as an over-long post does, not after it is live
+    const tooLong = firstCommentOverBy(firstCommentRule, firstComment);
+    if (tooLong > 0) all.push(`The first comment is ${tooLong} character${tooLong === 1 ? "" : "s"} over what ${META_COMPOSE_RULES[channel].label} takes.`);
+    return all;
+  }, [channel, draft, firstCommentRule, firstComment]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
-  const touched = text !== "" || media.length > 0 || link !== "";
+  const touched = text !== "" || media.length > 0 || link !== "" || (firstCommentRule !== undefined && firstComment !== "");
   const blocked = problems.length > 0;
   const locked = sent !== null;
   // Once the post is on the calendar the scheduler owns it: a failed attempt is retried (or left failed) there, and the api refuses a second
@@ -150,6 +162,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     setText("");
     setMedia([]);
     setLink("");
+    setFirstComment("");
     setCaret(0);
     caretRef.current = 0;
     setMode("compose");
@@ -475,6 +488,16 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           {rules.mediaRequired ? "A picture or video is needed." : "Pictures are optional."}
         </span>
       </div>
+
+      <FirstCommentField
+        channel={channel}
+        value={firstComment}
+        onChange={(v) => {
+          setFirstComment(v);
+          edited();
+        }}
+        readOnly={locked}
+      />
 
       {rules.link ? (
         <div className="space-y-1">

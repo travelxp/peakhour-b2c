@@ -184,6 +184,9 @@ export interface ScheduledItemDto {
   smartTime?: SmartTimeMeta;
   externalId?: string;
   externalUrl?: string;
+  /** How the first comment went, once the post was live (never changes the post's own status). */
+  firstCommentStatus?: "posted" | "failed" | "skipped";
+  firstCommentReason?: string;
   publishedAt?: string;
   terminatedAt?: string;
   cancellationReason?: string;

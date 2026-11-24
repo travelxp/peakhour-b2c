@@ -13,8 +13,8 @@
  * ★IT ONLY OFFERS WHAT A PUBLISHER ACTUALLY HONOURS. The calendar spans every
  * channel, and the adapters differ in what they read off `payload`: LinkedIn /
  * Facebook / Instagram upload `mediaUrls`, X ignores them and publishes
- * `threadParts[0]` in place of `text`, and `firstComment` is read by NO adapter
- * at all. A uniform form over that would accept edits, save them, toast success
+ * `threadParts[0]` in place of `text`, and only some channels take a
+ * `firstComment` (the api's rules table says which). A uniform form over that would accept edits, save them, toast success
  * and publish something else — so the capability table below decides which
  * controls render, and an unsupported field is shown read-only rather than
  * hidden or (worse) offered.
@@ -57,6 +57,9 @@ import { isSavableAddress } from "@/lib/drive/copy";
 import { ScheduleTimePicker } from "@/components/scheduler/schedule-time-picker";
 import { PlatformCharCounter } from "@/components/composer/platform-char-counter";
 import { scheduler } from "@/lib/scheduler/client";
+import { FirstCommentField } from "@/components/composer/first-comment-field";
+import { useMediaRules } from "@/lib/media-rules";
+import { firstCommentNote, firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import { channelDisplayName, formatScheduleLabel } from "@/lib/scheduler/format";
 import { ApiError } from "@/lib/api";
 import type { PlatformKey } from "@/components/composer/types";
@@ -150,6 +153,10 @@ export function ScheduledPostEditor({
     mediaUrls: item.payload.mediaUrls ?? [],
   });
   const [text, setText] = useState(item.payload.text);
+  const [firstComment, setFirstComment] = useState(item.payload.firstComment ?? "");
+  const [baselineComment, setBaselineComment] = useState(item.payload.firstComment ?? "");
+  const firstCommentRule = firstCommentRuleOf(useMediaRules().data, item.channel);
+  const commentNote = firstCommentNote(item.firstCommentStatus, item.firstCommentReason);
   const [mediaUrls, setMediaUrls] = useState<string[]>(item.payload.mediaUrls ?? []);
   const [when, setWhen] = useState<Date>(new Date(item.scheduledAtUtc));
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -178,6 +185,8 @@ export function ScheduledPostEditor({
       });
       setText(item.payload.text);
       setMediaUrls(item.payload.mediaUrls ?? []);
+      setFirstComment(item.payload.firstComment ?? "");
+      setBaselineComment(item.payload.firstComment ?? "");
     }
     setPaidPartnership(item.payload.channelOptions?.paidPartnership === true);
     setConfirmCancel(false);
@@ -203,6 +212,7 @@ export function ScheduledPostEditor({
 
   const contentDirty =
     text !== baseline.text ||
+    (firstCommentRule !== undefined && firstComment.trim() !== baselineComment.trim()) ||
     mediaUrls.length !== baseline.mediaUrls.length ||
     // Element-wise, not a joined string: a delimiter comparison calls two
     // genuinely different lists equal whenever the delimiter appears in a value.
@@ -225,6 +235,8 @@ export function ScheduledPostEditor({
         // Sent even when emptied: the server reads an empty collection as
         // "remove it", which is how media gets detached.
         ...(supportsMedia ? { mediaUrls } : {}),
+        // Sent even when emptied (the server reads an empty one as "remove it"), and only where the channel takes one.
+        ...(firstCommentRule ? { firstComment: firstComment.trim() } : {}),
       }),
     onSuccess: (res) => {
       // Adopt what the server stored, for BOTH the baseline and the field. The
@@ -238,6 +250,8 @@ export function ScheduledPostEditor({
       });
       setText(res.payload.text);
       setMediaUrls(res.payload.mediaUrls ?? []);
+      setFirstComment(res.payload.firstComment ?? "");
+      setBaselineComment(res.payload.firstComment ?? "");
       toast.success("Scheduled post updated.");
       onChanged();
     },
@@ -338,6 +352,11 @@ export function ScheduledPostEditor({
             ? " — a publish is already under way, so it can't be edited or moved."
             : " — it can no longer be edited, rescheduled or published."}
         </div>
+        {commentNote && (
+          <p role="status" data-testid="first-comment-note" className={commentNote.tone === "warn" ? "text-xs text-warning-on-tint" : "text-xs text-muted-foreground"}>
+            {commentNote.text}
+          </p>
+        )}
         {canCancel && <CancelBlock cancel={cancel} confirm={confirmCancel} setConfirm={setConfirmCancel} />}
       </div>
     );
@@ -403,6 +422,8 @@ export function ScheduledPostEditor({
           />
         </div>
       )}
+
+      <FirstCommentField channel={item.channel} value={firstComment} onChange={setFirstComment} readOnly={isThread || anyPending} />
 
       {item.channel === "x" && (
         <div className="flex items-start gap-2">
@@ -538,7 +559,7 @@ export function ScheduledPostEditor({
             type="button"
             size="sm"
             onClick={() => saveContent.mutate()}
-            disabled={!contentDirty || trimmed.length === 0 || anyPending}
+            disabled={!contentDirty || trimmed.length === 0 || anyPending || (!isThread && firstCommentOverBy(firstCommentRule, firstComment) > 0)}
             aria-busy={saveContent.isPending}
             className="gap-1.5"
             title={

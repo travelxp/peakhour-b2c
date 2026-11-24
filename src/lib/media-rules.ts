@@ -44,6 +44,8 @@ export interface MediaRule {
   image?: KindRule;
   video?: KindRule;
   document?: KindRule;
+  /** Post rows only: present when the channel's API lets Peakhour add a first comment after the post is live. */
+  firstComment?: { maxLength: number };
 }
 
 export type FileKind = "image" | "video" | "document";
