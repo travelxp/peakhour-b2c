@@ -14,12 +14,18 @@ import { NEEDS_OK_HREF } from "@/lib/nav-copy";
 import { channelLabel } from "@/lib/drive/copy";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { useAuth } from "@/providers/auth-provider";
+import { FirstCommentField } from "@/components/composer/first-comment-field";
+import { useMediaRules } from "@/lib/media-rules";
+import { firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import {
   useDecideRepurposedBatch,
   useRepurposedBatch,
   type RepurposedBatch,
   type VariantEffect,
 } from "@/hooks/use-repurposed-batch";
+
+/** The channel key the media rules and the api use: the old "twitter" key is X. */
+const channelKey = (p: string): string => (p.toLowerCase() === "twitter" ? "x" : p.toLowerCase());
 
 /** A platform key as a merchant reads it: the shared channel labels, with the old "twitter" key folded into X. */
 const platformLabel = (p: string): string => channelLabel(p.toLowerCase() === "twitter" ? "x" : p.toLowerCase());
@@ -72,6 +78,9 @@ export function approveSummary(effects: VariantEffect[]): string {
 export function RepurposedReview({ id }: { id: string }) {
   const { data: batch, isLoading, isError, error, refetch } = useRepurposedBatch(id);
   const decide = useDecideRepurposedBatch(id);
+  const rules = useMediaRules();
+  // What the person typed in each first-comment box, by channel. A channel with no entry shows the writer's suggestion; an entry (even blank) is the person's own words.
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const { org, orgs } = useAuth();
   const canEdit = driveAbilities(orgs?.find((o) => o._id === org?._id)?.role).canEdit;
 
@@ -128,11 +137,27 @@ export function RepurposedReview({ id }: { id: string }) {
     );
   }
 
+  const showBoxes = batch.canDecide && canEdit;
+  /** What this variant's box shows: the person's own words if they typed (or cleared it), else the writer's suggestion. */
+  const commentOf = (v: RepurposedBatch["variants"][number]): string => edits[channelKey(v.platform)] ?? v.firstComment ?? "";
+  /** The boxes the person changed from what was suggested: sent with the approval, blank clearing the suggestion. */
+  const changedComments = (): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const v of batch.variants) {
+      const channel = channelKey(v.platform);
+      if (edits[channel] !== undefined && edits[channel]!.trim() !== (v.firstComment ?? "").trim()) out[channel] = edits[channel]!.trim();
+    }
+    return out;
+  };
+  // A comment over its channel's length cannot be approved: the api would refuse it, and says so here first.
+  const tooLong = showBoxes && batch.variants.some((v) => firstCommentOverBy(firstCommentRuleOf(rules.data, channelKey(v.platform)), commentOf(v)) > 0);
+
   async function run(decision: "approve" | "reject") {
     // One decision at a time: a second confirm while one is in flight (or its refetch is landing) is ignored.
     if (decide.isPending) return;
     try {
-      const res = await decide.mutateAsync(decision);
+      const firstComments = decision === "approve" ? changedComments() : undefined;
+      const res = await decide.mutateAsync({ decision, ...(firstComments ? { firstComments } : {}) });
       // Already decided elsewhere (WhatsApp, a teammate): say so, as information, not as this click's success.
       (res.alreadyDecided ? toast.info : toast.success)(res.message);
       setAnnouncement(res.message);
@@ -175,6 +200,16 @@ export function RepurposedReview({ id }: { id: string }) {
               {v.hook && <p className="mt-1 text-sm font-medium">{v.hook}</p>}
               <p className="mt-2 whitespace-pre-wrap text-sm">{v.text}</p>
               {v.hashtags.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{v.hashtags.join(" ")}</p>}
+              {showBoxes && (
+                <div className="mt-3">
+                  <FirstCommentField
+                    channel={channelKey(v.platform)}
+                    value={commentOf(v)}
+                    onChange={(next) => setEdits((prev) => ({ ...prev, [channelKey(v.platform)]: next }))}
+                    readOnly={pending}
+                  />
+                </div>
+              )}
               {effect && (
                 <p data-effect={effect.outcome} className={`mt-2 text-xs ${effect.outcome === "will_publish" ? "text-muted-foreground" : "font-medium"}`}>
                   {effectSentence(effect)}
@@ -207,11 +242,11 @@ export function RepurposedReview({ id }: { id: string }) {
                 onConfirm={() => run("reject")}
               />
               <ConfirmDialog
-                trigger={<Button disabled={pending}>Approve</Button>}
+                trigger={<Button disabled={pending || tooLong}>Approve</Button>}
                 title="Approve these drafts?"
                 description={approveSummary(effects)}
                 confirmLabel="Approve"
-                confirmDisabled={pending}
+                confirmDisabled={pending || tooLong}
                 onConfirm={() => run("approve")}
               />
             </div>
