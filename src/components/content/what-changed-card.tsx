@@ -31,17 +31,17 @@ export function WhatChangedCard({ channel, accountLines = [] }: { channel?: What
     // no business yet (first paint): no request, no cached error under a key that is not a business
     enabled: !!business,
   });
-  const accountOnly = joinWhatChanged(accountLines, []);
+  const accountCard = accountLines.length > 0 ? <OneCard title={TITLE_WITH_ACCOUNT} lines={joinWhatChanged(accountLines, [])} /> : null;
   // A failed read says nothing: this is advice on top of a page, and an error card about advice would be noise.
-  if (q.isError) return accountLines.length > 0 ? <OneCard title={TITLE_WITH_ACCOUNT} lines={accountOnly} /> : null;
+  if (q.isError) return accountCard;
   if (q.isLoading || !business) {
-    return accountLines.length > 0 ? <OneCard title={TITLE_WITH_ACCOUNT} lines={accountOnly} /> : <Skeleton className="h-24 w-full" />;
+    return accountCard ?? <Skeleton className="h-24 w-full" />;
   }
   const channels = q.data ?? [];
   // One channel's card is silent until the channel has results to speak of (a page for a channel with no measured posts has no business saying "not enough
   // history"); once it has some, it says how far it is from enough. Results lists only channels that have something to say.
   const shown = channel ? channels.filter((c) => c.lines.length > 0 || c.measuredPosts > 0) : channels.filter((c) => c.lines.length > 0);
-  if (channel && shown.length === 0) return accountLines.length > 0 ? <OneCard title={TITLE_WITH_ACCOUNT} lines={accountOnly} /> : null;
+  if (channel && shown.length === 0) return accountCard;
   if (!channel && shown.length === 0) {
     return (
       <Card>
@@ -54,7 +54,7 @@ export function WhatChangedCard({ channel, accountLines = [] }: { channel?: What
   }
   if (channel && accountLines.length > 0) {
     const c = shown[0]!;
-    return <OneCard title={TITLE_WITH_ACCOUNT} lines={joinWhatChanged(accountLines, c.lines)} note={c.lines.length === 0 ? emptyNote(c) : undefined} />;
+    return <OneCard title={TITLE_WITH_ACCOUNT} lines={joinWhatChanged(accountLines, c.lines)} note={c.lines.length === 0 ? `About your posts: ${emptyNote(c)}` : undefined} />;
   }
   return (
     <Card>
