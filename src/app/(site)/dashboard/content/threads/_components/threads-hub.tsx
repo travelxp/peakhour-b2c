@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api";
 import { reconnectHref } from "@/lib/integrations-connect";
 import { useLocale } from "@/hooks/use-locale";
 import { NewPostButton } from "@/components/compose/new-post-button";
+import { WhatChangedCard } from "@/components/content/what-changed-card";
 import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { threadsApi, type ThreadsPost, type ThreadsProfile } from "@/lib/api/threads";
 import { postExcerpt, parseGraphTime } from "@/lib/meta-content-view";
@@ -93,6 +94,7 @@ function ThreadsHubBody() {
   return (
     <div className="space-y-6">
       <ProfileCard profile={profileQ.data!} />
+      <WhatChangedCard channel="threads" />
       <Posts reconnect={reconnect} />
     </div>
   );

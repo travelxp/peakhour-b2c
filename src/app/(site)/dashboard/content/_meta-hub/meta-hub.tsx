@@ -7,6 +7,8 @@ import { ExternalLink, FileText, MessageSquare, RefreshCw, Share2, Unplug } from
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import { NewPostButton } from "@/components/compose/new-post-button";
+import { DraftThisPostButton } from "@/components/compose/draft-this-post-button";
+import { WhatChangedCard } from "@/components/content/what-changed-card";
 import dynamic from "next/dynamic";
 
 // Its own chunk, like the compose sheet: the Repurpose sheet and its writers' price hooks are not part of the hub's first-load JS
@@ -301,7 +303,7 @@ const GROUP_TITLE: Record<MetaInsightLine["group"], string> = {
   attention: "Needs attention",
 };
 
-function WhatChanged({ lines }: { lines: MetaInsightLine[] }) {
+function WhatChanged({ lines, channel }: { lines: MetaInsightLine[]; channel: MetaHubChannel }) {
   if (lines.length === 0) return null;
   return (
     <Card>
@@ -309,9 +311,12 @@ function WhatChanged({ lines }: { lines: MetaInsightLine[] }) {
         <h3 className="text-sm font-semibold">What changed</h3>
         <ul className="space-y-1.5">
           {lines.map((l) => (
-            <li key={l.id} className="text-sm">
-              <span className="font-medium">{GROUP_TITLE[l.group]}: </span>
-              {l.text}
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{GROUP_TITLE[l.group]}: </span>
+                {l.text}
+              </span>
+              <DraftThisPostButton channel={channel} brief={l.draft} />
             </li>
           ))}
         </ul>
@@ -395,7 +400,7 @@ function Overview({
           </Button>
         ))}
       </div>
-      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <><WhatChanged lines={lines} /><TileGrid tiles={q.data!} previous={prevQ.data} days={days} /></>}
+      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <><WhatChanged lines={lines} channel={channel} /><WhatChangedCard channel={channel} /><TileGrid tiles={q.data!} previous={prevQ.data} days={days} /></>}
     </div>
   );
 }

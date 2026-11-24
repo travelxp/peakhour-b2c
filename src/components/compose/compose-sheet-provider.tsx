@@ -8,8 +8,11 @@ import type { ComposeChannel } from "@/lib/compose-channel";
 const ComposeNewSheet = dynamic(() => import("./compose-new-sheet").then((mod) => mod.ComposeNewSheet));
 
 interface ComposeSheetApi {
-  /** Open the New post sheet, on `channel` when given, else on the channel picker. */
-  open: (channel?: ComposeChannel | null) => void;
+  /**
+   * Open the New post sheet, on `channel` when given, else on the channel picker. With `brief`, the composer writes a first draft from it
+   * (the "Draft this post" button); it is only text in the box until the merchant publishes or schedules it.
+   */
+  open: (channel?: ComposeChannel | null, brief?: string) => void;
 }
 
 const ComposeSheetContext = createContext<ComposeSheetApi | null>(null);
@@ -19,13 +22,14 @@ const ComposeSheetContext = createContext<ComposeSheetApi | null>(null);
  * on this provider, so two buttons never mount two sheets. The sheet mounts on the first open and stays for the page's life.
  */
 export function ComposeSheetProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<{ mounted: boolean; open: boolean; channel: ComposeChannel | null }>({
+  const [state, setState] = useState<{ mounted: boolean; open: boolean; channel: ComposeChannel | null; brief: string | null }>({
     mounted: false,
     open: false,
     channel: null,
+    brief: null,
   });
-  const open = useCallback((channel?: ComposeChannel | null) => {
-    setState({ mounted: true, open: true, channel: channel ?? null });
+  const open = useCallback((channel?: ComposeChannel | null, brief?: string) => {
+    setState({ mounted: true, open: true, channel: channel ?? null, brief: brief ?? null });
   }, []);
   const api = useMemo(() => ({ open }), [open]);
   return (
@@ -36,6 +40,7 @@ export function ComposeSheetProvider({ children }: { children: React.ReactNode }
           open={state.open}
           onOpenChange={(next) => setState((s) => ({ ...s, open: next }))}
           channel={state.channel}
+          brief={state.brief}
         />
       ) : null}
     </ComposeSheetContext.Provider>

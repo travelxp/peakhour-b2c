@@ -257,6 +257,8 @@ export interface MetaInsightLine {
   id: string;
   group: "improving" | "declining" | "attention";
   text: string;
+  /** The brief for the post this line asks for, for "Draft this post". Present on every line, since each one implies an action. */
+  draft: string;
 }
 
 /** Posts in the last INSIGHT_QUIET_DAYS, or null when dates cannot be read (never a guessed 0). */
@@ -293,6 +295,8 @@ export function metaInsightActions(input: {
   const prev = byKey(input.previous);
   const vs = previousPeriodPhrase(days);
   const lines: MetaInsightLine[] = [];
+  const name = channel === "facebook" ? "Facebook" : "Instagram";
+  const brief = (how: string) => `Write ${channel === "facebook" ? "a" : "an"} ${name} post. ${how}`;
 
   /** Signed, rounded percent change from the same `periodDelta` the tile chip shows, so a line and
    *  its chip never disagree; null when either figure is missing or the base is too small to trust. */
@@ -305,7 +309,7 @@ export function metaInsightActions(input: {
   const head = HEADLINE[channel];
   const headPct = pct(head.key);
   if (headPct !== null && headPct >= INSIGHT_RISE_PCT) {
-    lines.push({ id: "reach_up", group: "improving", text: `${head.noun} are up ${headPct}% on ${vs}. Keep posting what worked.` });
+    lines.push({ id: "reach_up", group: "improving", text: `${head.noun} are up ${headPct}% on ${vs}. Keep posting what worked.`, draft: brief("Make it like your best recent post, with a fresh angle.") });
   }
   if (headPct !== null && -headPct >= INSIGHT_FALL_PCT) {
     // "Post more often" is advice only for an account that posts rarely; one that already posts
@@ -314,16 +318,16 @@ export function metaInsightActions(input: {
       input.recentPosts !== null && input.recentPosts < INSIGHT_REGULAR_POSTS
         ? "post more often this week"
         : "try a different kind of post this week, like the ones that did best";
-    lines.push({ id: "reach_down", group: "declining", text: `${head.noun} fell ${-headPct}% on ${vs}: ${advice}.` });
+    lines.push({ id: "reach_down", group: "declining", text: `${head.noun} fell ${-headPct}% on ${vs}: ${advice}.`, draft: brief("Try a different kind of post from your last few, like the ones that did best.") });
   }
   const eng = ENGAGEMENT[channel];
   const engPct = pct(eng.key);
   if (engPct !== null && -engPct >= INSIGHT_ENGAGEMENT_FALL_PCT) {
-    lines.push({ id: "engagement_down", group: "declining", text: `${eng.noun} fell ${-engPct}% on ${vs}: ask a question or share something people can react to.` });
+    lines.push({ id: "engagement_down", group: "declining", text: `${eng.noun} fell ${-engPct}% on ${vs}: ask a question or share something people can react to.`, draft: brief("Ask the reader a question, or share something people can react to.") });
   }
   // A fall already told to "post more often" carries the quiet account's point; say it once.
   if (input.recentPosts === 0 && !lines.some((l) => l.id === "reach_down")) {
-    lines.push({ id: "quiet", group: "attention", text: `No posts in the last ${INSIGHT_QUIET_DAYS} days.` });
+    lines.push({ id: "quiet", group: "attention", text: `No posts in the last ${INSIGHT_QUIET_DAYS} days.`, draft: brief("Pick up where you left off.") });
   }
 
   const order = { improving: 0, declining: 1, attention: 2 } as const;

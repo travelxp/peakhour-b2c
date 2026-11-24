@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +26,10 @@ import {
 import { PageIntro } from "@/components/dashboard/page-intro";
 import { navLabel } from "@/lib/nav-copy";
 import { TikTokResults } from "@/components/tiktok/tiktok-results";
+import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
+
+// Loaded after the page paints: the ledger is the screen, the advice sits beside it.
+const WhatChangedCard = dynamic(() => import("@/components/content/what-changed-card").then((m) => m.WhatChangedCard));
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -96,6 +101,11 @@ export default function ContentLedgerPage() {
       />
       <PageIntro id="ledger" />
       <TikTokResults />
+
+      {/* What changed on each channel's posts, with a Draft this post button on every line that implies an action. */}
+      <ComposeSheetProvider>
+        <WhatChangedCard />
+      </ComposeSheetProvider>
 
       {/* ★`isPending` ALONE, never `isPending && !isError` — the two statuses
           are mutually exclusive in Query v5, so the second is a guard after a

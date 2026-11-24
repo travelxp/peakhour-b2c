@@ -75,9 +75,14 @@ export interface ComposeNewSheetProps {
    * The calendar's `?compose=<channel>` link feeds this (see parseComposeParam).
    */
   channel?: ComposeChannel | null;
+  /**
+   * A brief to write the first draft from, as the composer opens ("Draft this post" on a What changed line). The merchant has seen the price
+   * on the button that opened the sheet; the composer runs its own Compose action once and only fills the text box.
+   */
+  brief?: string | null;
 }
 
-export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheetProps) {
+export function ComposeNewSheet({ open, onOpenChange, channel, brief }: ComposeNewSheetProps) {
   // The option as it was when picked. Held whole, not looked up again: the connection list refetches on window focus, and a channel
   // that drops out of it mid-compose must not change the header or the "Posting to" line under the merchant's hands.
   const [chosen, setChosen] = useState<PlatformOption | null>(null);
@@ -128,6 +133,8 @@ export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheet
   }
 
   const activeLabel = chosen?.label;
+  // The brief belongs to the channel it was made for: a merchant who presses "Change channel" and picks another one gets an empty box.
+  const briefHere = brief && chosen && chosen.value === channel ? brief : undefined;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -138,7 +145,9 @@ export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheet
           </SheetTitle>
           <SheetDescription className="text-xs">
             {platform
-              ? "Write your post, then publish now or schedule it for later."
+              ? briefHere
+                ? "We are writing a draft from your results. Check it and change it, then publish now or schedule it for later."
+                : "Write your post, then publish now or schedule it for later."
               : "Pick a channel to start a new post."}
           </SheetDescription>
         </SheetHeader>
@@ -196,12 +205,12 @@ export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheet
                 <ArrowLeft className="size-3.5" /> Change channel
               </Button>
               {platform === "linkedin" ? (
-                <LinkedInCompose />
+                <LinkedInCompose brief={briefHere} />
               ) : platform === "x" ? (
-                <TweetComposer />
+                <TweetComposer brief={briefHere} />
               ) : isMetaComposeChannel(platform) ? (
                 // keyed by channel so the text and pictures never carry from one channel to another
-                <MetaComposer key={platform} channel={platform} postingTo={chosen?.postingTo ?? null} />
+                <MetaComposer key={platform} channel={platform} postingTo={chosen?.postingTo ?? null} {...(briefHere ? { brief: briefHere } : {})} />
               ) : null}
             </div>
           )}
@@ -213,7 +222,7 @@ export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheet
 
 /** LinkedIn branch — fetches the identity the PostComposer needs and
  *  renders the appropriate gate (loading / not-connected / composer). */
-function LinkedInCompose() {
+function LinkedInCompose({ brief }: { brief?: string | undefined }) {
   const identity = useLinkedInIdentity();
 
   if (identity.isLoading) {
@@ -233,5 +242,5 @@ function LinkedInCompose() {
       </div>
     );
   }
-  return <PostComposer identity={identity.data} />;
+  return <PostComposer identity={identity.data} {...(brief ? { brief } : {})} />;
 }

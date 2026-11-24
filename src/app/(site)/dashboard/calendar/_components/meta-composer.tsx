@@ -44,6 +44,7 @@ import {
   type MetaComposeChannel,
   type MetaMedia,
 } from "@/lib/meta-compose";
+import { useBriefDraft } from "@/components/composer/use-brief-draft";
 import { aiOpToast } from "@/app/(site)/dashboard/content/linkedin/_components/composer-helpers";
 
 /**
@@ -74,9 +75,11 @@ export interface MetaComposerProps {
   channel: MetaComposeChannel;
   /** "Posting to Acme Bakery", from the connection. Null when the connection does not say. */
   postingTo: string | null;
+  /** A brief to write the first draft from when the composer opens (see `useBriefDraft`). */
+  brief?: string;
 }
 
-export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
+export function MetaComposer({ channel, postingTo, brief }: MetaComposerProps) {
   const rules = META_COMPOSE_RULES[channel];
   const queryClient = useQueryClient();
 
@@ -212,6 +215,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     },
     [channel, insertSnippet],
   );
+
+  useBriefDraft(brief, channel, handleAiAction);
 
   const searchHashtags = useCallback(async (): Promise<HashtagCandidate[]> => [], []);
 
