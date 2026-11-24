@@ -98,13 +98,13 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
             </label>
           ) : (
             <>
-              {item.actions.download && (
+              {item.actions.download && !isWords && (
                 <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.downloadLabel(title)} disabled={busy} onClick={() => actions.onDownload?.(item)}>
                   <Download aria-hidden="true" className="size-4" />
                   {A.download}
                 </Button>
               )}
-              {canChange && item.actions.newVersion && (
+              {canChange && item.actions.newVersion && !isWords && (
                 <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.newVersionLabel(title)} disabled={busy} onClick={() => actions.onNewVersion?.(item)}>
                   <Copy aria-hidden="true" className="size-4" />
                   {A.newVersion}

@@ -29,6 +29,8 @@ export const wordsApprovalsCsvPath = "/v1/creative/words/approvals.csv";
 
 /** Same helper, same sentences; the file is the business's approved and used words. `message` is set when it did not work. */
 export async function exportApprovedWords(): Promise<{ ok: true } | { ok: false; message: string }> {
-  const out = await downloadConversationExport(wordsApprovalsCsvPath, "studio-approved-words.csv", exportFailureLine);
+  const W = STUDIO_COPY.library.wordsExport;
+  const line = (status: number): string => (status === 403 ? W.forbidden : status === 404 ? W.missing : exportFailureLine(status));
+  const out = await downloadConversationExport(wordsApprovalsCsvPath, "studio-approved-words.csv", line);
   return out.ok ? { ok: true } : { ok: false, message: out.message };
 }

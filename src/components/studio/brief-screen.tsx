@@ -102,6 +102,8 @@ export function BriefScreen() {
   const [planSaved, setPlanSaved] = useState(false);
   const [warnings, setWarnings] = useState<BriefWarning[]>([]);
   const [serverNoAi, setServerNoAi] = useState<boolean | undefined>(undefined);
+  /** The platform the api holds for the plan: a change is sent only when the form differs from it (a plan that never had one never sends null). */
+  const [serverPlatform, setServerPlatform] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refusal, setRefusal] = useState<StudioRefusal | undefined>(undefined);
   const [releasedOff, setReleasedOff] = useState(false);
@@ -139,6 +141,7 @@ export function BriefScreen() {
         platform: v.brief.platform ?? null,
       });
       setServerNoAi(v.brief.noAiPeople);
+      setServerPlatform(v.brief.platform ?? null);
       setWarnings(v.warnings);
       setHydrated(true);
       setInitialised(true);
@@ -191,12 +194,13 @@ export function BriefScreen() {
   };
   const snapshot = JSON.stringify(body);
   // A change goes to the plan as it stands, so a platform taken back to "Not sure yet" is sent as null (a new plan simply leaves it off).
-  const platformPatch = words ? { platform: form.platform } : {};
+  const platformPatch = words && form.platform !== serverPlatform ? { platform: form.platform } : {};
   // The platforms the words can be written for: the channels the business has connected.
   const connected = useConnectedChannels(words);
   const platforms = {
     state: connected.isError ? ("failed" as const) : connected.data ? ("ready" as const) : ("loading" as const),
-    choices: STUDIO_CHANNELS.filter((c) => connected.data?.includes(c.key)).map((c) => ({ key: c.key, label: c.label })),
+    // when the connected accounts cannot be read, every channel Studio writes for is offered (the choice is only which limits the words are written to)
+    choices: STUDIO_CHANNELS.filter((c) => (connected.isError ? true : connected.data?.includes(c.key))).map((c) => ({ key: c.key, label: c.label })),
   };
 
   // Words only follows the text writer's own switch, not the picture maker's.
@@ -225,6 +229,7 @@ export function BriefScreen() {
             setCreativeId(r.creativeId);
             setWarnings(r.warnings);
             setServerNoAi(r.brief.noAiPeople);
+            setServerPlatform(r.brief.platform ?? null);
             const next = new URLSearchParams(params.toString());
             next.set("c", r.creativeId);
             router.replace(`${pathname}?${next.toString()}`);
@@ -234,6 +239,7 @@ export function BriefScreen() {
             const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
             setWarnings(r.warnings);
             setServerNoAi(r.brief.noAiPeople);
+            setServerPlatform(r.brief.platform ?? null);
           }
           setSynced(snapshot);
           setSaveFailed(false);
@@ -269,10 +275,12 @@ export function BriefScreen() {
       if (creativeId) {
         const { kind: _kind, ...rest } = body;
         void _kind;
-        await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
+        const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
+        setServerPlatform(r.brief.platform ?? null);
       } else {
         const r = await create.mutateAsync(body);
         setCreativeId(r.creativeId);
+        setServerPlatform(r.brief.platform ?? null);
       }
       setPlanSaved(true);
     } catch {

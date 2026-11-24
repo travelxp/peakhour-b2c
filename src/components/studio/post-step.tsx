@@ -373,12 +373,13 @@ export function PostStep({
         const platform = adPlatformOf(c);
         if (platform && !byPlatform.has(platform)) byPlatform.set(platform, c);
       }
-      const made = await Promise.allSettled([...byPlatform.values()].map((c) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
+      const asked = [...byPlatform.entries()];
+      const made = await Promise.allSettled(asked.map(([, c]) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
       const ok = made.flatMap((m) => (m.status === "fulfilled" ? m.value.adCreatives : []));
       const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
       if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");
       // The words were written once; going to a platform with tighter limits they are cut (free, no new call) and the merchant is told what was shortened.
-      const shortened = made.flatMap((m) => (m.status === "fulfilled" && m.value.shortened?.length ? [{ platform: m.value.adCreatives[0]?.platform ?? "", parts: m.value.shortened }] : []));
+      const shortened = made.flatMap((m, i) => (m.status === "fulfilled" && m.value.shortened?.length ? [{ platform: asked[i]![0], parts: m.value.shortened }] : []));
       return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "", shortenedFor: shortened } satisfies AdHandoff & { shortenedFor: Array<{ platform: string; parts: string[] }> };
     },
     onSuccess: (r: AdHandoff & { shortenedFor?: Array<{ platform: string; parts: string[] }> }) => {
