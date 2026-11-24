@@ -201,6 +201,10 @@ describe("post or schedule (S13)", () => {
     expect(done).toContain("Make another");
     const ad = renderToStaticMarkup(<PostStepView {...base} adNote={{ text: "Added to Growth. Approve it there to use it in an ad.", growthHref: "/dashboard/ads" }} />);
     expect(ad).toContain("Open in Growth");
+    expect(ad).not.toContain("studio-post-shortened");
+    const cut = renderToStaticMarkup(<PostStepView {...base} adNote={{ text: "Added to Growth. Approve it there to use it in an ad.", growthHref: "/dashboard/ads", shortened: ["We shortened the headline to fit LinkedIn."] }} />);
+    expect(cut).toContain('data-slot="studio-post-shortened"');
+    expect(cut).toContain("We shortened the headline to fit LinkedIn.");
     const failed = renderToStaticMarkup(<PostStepView {...base} failure="Instagram did not take the post. You can see it on the calendar." />);
     expect(failed).toContain('role="alert"');
   });

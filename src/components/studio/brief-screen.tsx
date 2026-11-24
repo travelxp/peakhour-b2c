@@ -15,6 +15,7 @@ import type { PostFormat, PostIdea } from "@/lib/api/creative";
 import type { BriefBody, BriefPatch, BriefWarning } from "@/lib/api/creative-studio";
 import {
   useCreateBrief,
+  useConnectedChannels,
   useCreative,
   usePatchBrief,
   usePress,
@@ -24,6 +25,7 @@ import {
 } from "@/hooks/use-studio-flow";
 import { usePostIdeas, useStudioAvailability, useStudioPrefs } from "@/hooks/use-studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
+import { STUDIO_CHANNELS } from "@/lib/studio-publish";
 import {
   affordableUnits,
   isNotReleased,
@@ -52,9 +54,11 @@ interface Form {
   count: 3 | 4;
   /** undefined until touched: the business setting then decides (the api reads it). */
   noAiPeople: boolean | undefined;
+  /** Words only: the platform the words are written for; null while none is chosen. */
+  platform: string | null;
 }
 
-const emptyForm = (kind: Form["kind"] = "image"): Form => ({ kind, productIds: [], titles: {}, photos: {}, line: "", language: "en", format: "feed", count: 4, noAiPeople: undefined });
+const emptyForm = (kind: Form["kind"] = "image"): Form => ({ kind, productIds: [], titles: {}, photos: {}, line: "", language: "en", format: "feed", count: 4, noAiPeople: undefined, platform: null });
 
 /**
  * The plan screen (UX spec S3). Where the plan comes from: `?idea=` (an idea of today), `?products=a,b` (a catalog row) or nothing (from
@@ -98,6 +102,8 @@ export function BriefScreen() {
   const [planSaved, setPlanSaved] = useState(false);
   const [warnings, setWarnings] = useState<BriefWarning[]>([]);
   const [serverNoAi, setServerNoAi] = useState<boolean | undefined>(undefined);
+  /** The platform the api holds for the plan: a change is sent only when the form differs from it (a plan that never had one never sends null). */
+  const [serverPlatform, setServerPlatform] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refusal, setRefusal] = useState<StudioRefusal | undefined>(undefined);
   const [releasedOff, setReleasedOff] = useState(false);
@@ -132,8 +138,10 @@ export function BriefScreen() {
         format: v.brief.format,
         count: v.brief.count === 3 ? 3 : 4,
         noAiPeople: undefined,
+        platform: v.brief.platform ?? null,
       });
       setServerNoAi(v.brief.noAiPeople);
+      setServerPlatform(v.brief.platform ?? null);
       setWarnings(v.warnings);
       setHydrated(true);
       setInitialised(true);
@@ -182,8 +190,19 @@ export function BriefScreen() {
     ...(!words && form.noAiPeople !== undefined ? { noAiPeople: form.noAiPeople } : {}),
     photoMediaIds: words ? [] : photoMediaIdsFor(form.productIds, photoOf),
     count: form.count,
+    ...(words && form.platform ? { platform: form.platform } : {}),
   };
   const snapshot = JSON.stringify(body);
+  // The platform goes to a saved plan only when it differs from what the api holds (so an unrelated edit never re-sends it); taking it back to "Not sure yet" is sent as
+  // null. A new plan carries it in the body, or leaves it off.
+  const platformPatch = words && form.platform !== serverPlatform ? { platform: form.platform } : {};
+  // The platforms the words can be written for: the channels the business has connected.
+  const connected = useConnectedChannels(words);
+  const platforms = {
+    state: connected.isError ? ("failed" as const) : connected.data ? ("ready" as const) : ("loading" as const),
+    // when the connected accounts cannot be read, every channel Studio writes for is offered (the choice is only which limits the words are written to)
+    choices: STUDIO_CHANNELS.filter((c) => (connected.isError ? true : connected.data?.includes(c.key))).map((c) => ({ key: c.key, label: c.label })),
+  };
 
   // Words only follows the text writer's own switch, not the picture maker's.
   const switchedOn = words ? availability.capabilities.textAds === "on" : availability.capabilities.previews === "on";
@@ -211,15 +230,18 @@ export function BriefScreen() {
             setCreativeId(r.creativeId);
             setWarnings(r.warnings);
             setServerNoAi(r.brief.noAiPeople);
+            setServerPlatform(r.brief.platform ?? null);
             const next = new URLSearchParams(params.toString());
             next.set("c", r.creativeId);
             router.replace(`${pathname}?${next.toString()}`);
           } else {
-            const { kind: _kind, ...rest } = body;
+            const { kind: _kind, platform: _platform, ...rest } = body;
             void _kind;
-            const r = await patch.mutateAsync(rest as BriefPatch);
+            void _platform;
+            const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
             setWarnings(r.warnings);
             setServerNoAi(r.brief.noAiPeople);
+            setServerPlatform(r.brief.platform ?? null);
           }
           setSynced(snapshot);
           setSaveFailed(false);
@@ -253,12 +275,15 @@ export function BriefScreen() {
     setSaveFailed(false);
     try {
       if (creativeId) {
-        const { kind: _kind, ...rest } = body;
+        const { kind: _kind, platform: _platform, ...rest } = body;
         void _kind;
-        await patch.mutateAsync(rest as BriefPatch);
+        void _platform;
+        const r = await patch.mutateAsync({ ...rest, ...platformPatch } as BriefPatch);
+        setServerPlatform(r.brief.platform ?? null);
       } else {
         const r = await create.mutateAsync(body);
         setCreativeId(r.creativeId);
+        setServerPlatform(r.brief.platform ?? null);
       }
       setPlanSaved(true);
     } catch {
@@ -358,6 +383,8 @@ export function BriefScreen() {
         format={form.format}
         count={form.count}
         noAiPeople={form.noAiPeople ?? serverNoAi ?? false}
+        platform={form.platform}
+        platforms={platforms}
         proTools={proTools}
         previews={comingSoon ? "coming_soon" : previewsOn}
         block={block}
@@ -383,6 +410,8 @@ export function BriefScreen() {
         onCount={(count) => setForm((f) => ({ ...f, count }))}
         onKind={onKind}
         onNoAiPeople={(v) => setForm((f) => ({ ...f, noAiPeople: v }))}
+        onPlatform={(platform) => setForm((f) => ({ ...f, platform }))}
+        onRetryPlatforms={() => void connected.refetch()}
         onChangeProducts={() => setPickerOpen(true)}
         onRemoveProduct={(id) => setForm((f) => ({ ...f, productIds: f.productIds.filter((x) => x !== id) }))}
         addPhoto={(productId, title) => (

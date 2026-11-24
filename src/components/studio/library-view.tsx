@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Copy, Download, Image as ImageIcon, ImageOff, Info, RefreshCw, Star, Trash2 } from "lucide-react";
+import { Copy, Download, FileText, Image as ImageIcon, ImageOff, Info, RefreshCw, Star, Trash2 } from "lucide-react";
 import type { LibraryItem, LibraryPage, LibraryView as LibraryViewKind, ProductPhotoTile, ProductPhotosOne } from "@/lib/api/creative";
 import type { ProductImportStatus } from "@/lib/api/media";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
-import { chipFor, creativeHref, importLines, itemTitle, pageCount, sentTo } from "@/lib/studio-library";
+import { chipFor, creativeHref, importLines, itemTitle, pageCount, sentTo, subLine } from "@/lib/studio-library";
+import { channelLabel } from "@/lib/studio-publish";
 import { STUDIO_ROUTES, type IdeasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
@@ -43,10 +44,12 @@ export interface TileActions {
 
 function CreativeTile({ item, view, actions }: { item: LibraryItem; view: LibraryViewKind; actions?: TileActions }) {
   const title = itemTitle(item);
-  const format = FORMAT_LABEL[item.format] ?? item.format;
+  const isWords = item.kind === "words";
+  const format = isWords ? C.wordsKind : (FORMAT_LABEL[item.format] ?? item.format);
   const A = C.actions;
   const busy = actions?.busyIds?.has(item.id) ?? false;
   const sent = view === "made" ? sentTo(item) : "";
+  const line = subLine(item, format, (k) => C.channels[k] ?? channelLabel(k));
   const canChange = actions?.canChange ?? false;
   return (
     <li className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card" data-publish={view === "made" ? item.publish.state : undefined}>
@@ -55,8 +58,21 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
         aria-label={`${C.open}: ${C.itemLabel(title, format)}`}
         className="group flex flex-1 flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="relative aspect-[4/5] bg-muted">
-          {item.thumbUrl ? (
+        <div className="relative aspect-[4/5] bg-muted" data-kind={isWords ? "words" : "image"}>
+          {isWords ? (
+            // A words creative has no picture: the tile is the words themselves, never an empty picture slot.
+            <div className="flex size-full flex-col gap-2 overflow-hidden p-3 pt-10" data-slot="studio-library-words">
+              <FileText aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+              {item.words?.card ? (
+                <>
+                  <p className="line-clamp-3 text-sm font-semibold">{item.words.card.headline}</p>
+                  <p className="line-clamp-6 whitespace-pre-line text-xs text-muted-foreground">{item.words.card.primaryText}</p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">{C.wordsNone}</p>
+              )}
+            </div>
+          ) : item.thumbUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a signed Drive link; see MediaImage for why this stays off the optimiser
             <img src={item.thumbUrl} alt={C.thumbAlt(title)} loading="lazy" decoding="async" className="size-full object-cover" />
           ) : (
@@ -71,7 +87,7 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
         </div>
         <div className="space-y-0.5 p-3">
           <p className="truncate text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{sent ? `${format}. ${sent}` : format}</p>
+          <p className="text-xs text-muted-foreground">{sent ? `${line}. ${sent}` : line}</p>
         </div>
       </Link>
       {actions && (
@@ -83,13 +99,13 @@ function CreativeTile({ item, view, actions }: { item: LibraryItem; view: Librar
             </label>
           ) : (
             <>
-              {item.actions.download && (
+              {item.actions.download && !isWords && (
                 <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.downloadLabel(title)} disabled={busy} onClick={() => actions.onDownload?.(item)}>
                   <Download aria-hidden="true" className="size-4" />
                   {A.download}
                 </Button>
               )}
-              {canChange && item.actions.newVersion && (
+              {canChange && item.actions.newVersion && !isWords && (
                 <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.newVersionLabel(title)} disabled={busy} onClick={() => actions.onNewVersion?.(item)}>
                   <Copy aria-hidden="true" className="size-4" />
                   {A.newVersion}

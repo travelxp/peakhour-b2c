@@ -18,6 +18,7 @@ import { driveAbilities } from "@/lib/drive/files-state";
 import { downloadLink } from "@/lib/download";
 import { useStudioPrefs } from "@/hooks/use-studio";
 import { LIBRARY_KEYS, useImportStatus, useLibrary, useProductPhotos, useProductPhotosOne } from "@/hooks/use-studio-library";
+import { exportApprovedWords } from "@/lib/studio-export";
 import { bulkSummary, creativeHref, downloadChoices, filterQuery, itemTitle } from "@/lib/studio-library";
 import { ideasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
@@ -155,6 +156,7 @@ export function Library() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   // What the confirm dialog was last asked, kept while it closes so its words do not change under the closing animation.
   const [asked, setAsked] = useState<Pending>(null);
@@ -281,6 +283,18 @@ export function Library() {
     }
   };
 
+  /** Pro tools: the words options approved or used, as a spreadsheet (free; the same columns as a batch's file). */
+  const exportWords = async () => {
+    setExporting(true);
+    try {
+      const r = await exportApprovedWords();
+      if (r.ok) toast(C.wordsExport.done);
+      else toast.error(r.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const doBulk = async (action: "delete" | "archive") => {
     setBulkBusy(true);
     try {
@@ -366,20 +380,28 @@ export function Library() {
         </TabsList>
         <TabsContent value="made" className="space-y-4 pt-2">
           {proTools && <LibraryFilters q={q} values={filters} onQ={setQ} onChange={change} />}
-          {proTools && canChange && (
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11"
-                aria-pressed={selecting}
-                onClick={() => {
-                  setSelecting((s) => !s);
-                  setSelected(new Set());
-                }}
-              >
-                {selecting ? C.bulk.done : C.bulk.select}
+          {proTools && (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" className="h-11" disabled={exporting} aria-busy={exporting} aria-describedby="studio-words-export-hint" onClick={() => void exportWords()}>
+                {exporting ? C.wordsExport.working : C.wordsExport.button}
               </Button>
+              {canChange && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11"
+                  aria-pressed={selecting}
+                  onClick={() => {
+                    setSelecting((s) => !s);
+                    setSelected(new Set());
+                  }}
+                >
+                  {selecting ? C.bulk.done : C.bulk.select}
+                </Button>
+              )}
+            <p id="studio-words-export-hint" className="w-full text-end text-xs text-muted-foreground">
+                {C.wordsExport.hint}
+              </p>
             </div>
           )}
           <CreativesView view="made" status={ideasFeedStatus(made)} data={made.data} filtered={filtered} onRetry={() => void made.refetch()} onClearFilters={clear} onPage={goPage} actions={tileActions} />
@@ -482,7 +504,7 @@ export function Library() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{asked?.kind === "delete" ? C.actions.deleteTitle : asked?.action === "archive" ? C.bulk.archiveTitle(asked.count) : C.bulk.deleteTitle(asked?.count ?? 0)}</AlertDialogTitle>
-            <AlertDialogDescription>{asked?.kind === "delete" ? C.actions.deleteBody : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
+            <AlertDialogDescription>{asked?.kind === "delete" ? (asked.item.kind === "words" ? C.actions.deleteBodyWords : C.actions.deleteBody) : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={confirmBusy}>{C.actions.deleteCancel}</AlertDialogCancel>

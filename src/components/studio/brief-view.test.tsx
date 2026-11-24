@@ -26,6 +26,8 @@ const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   format: "story",
   count: 4,
   noAiPeople: false,
+  platform: null,
+  platforms: { state: "ready", choices: [{ key: "instagram", label: "Instagram" }, { key: "linkedin", label: "LinkedIn" }] },
   proTools: false,
   previews: "on",
   block: null,
@@ -43,6 +45,8 @@ const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   onCount: noop,
   onKind: noop,
   onNoAiPeople: noop,
+  onPlatform: noop,
+  onRetryPlatforms: noop,
   onChangeProducts: noop,
   onRemoveProduct: noop,
   addPhoto: (id) => <button data-add-photo={id}>Add a photo</button>,
@@ -86,6 +90,28 @@ describe("the plan (S3): the rows", () => {
     expect(html).toContain("Uses 50 Peaks");
     expect(html).not.toContain("Up to 50");
     expect(makeButton(html, "Write 4 options")).not.toContain(`disabled=""`);
+  });
+
+  it("a words-only plan asks for the platform first: Not sure yet is the default and the connected platforms follow", () => {
+    const html = render({ kind: "words" });
+    expect(html).toContain("Where will you post it?");
+    expect(/role="radio" aria-checked="true"[^>]*>Not sure yet</.test(html)).toBe(true);
+    expect(/role="radio" aria-checked="false"[^>]*>Instagram</.test(html)).toBe(true);
+    expect(/role="radio" aria-checked="false"[^>]*>LinkedIn</.test(html)).toBe(true);
+    expect(html).toContain("We&#x27;ll write for Facebook and Instagram.");
+    expect(render({ kind: "words", platform: "linkedin" })).toMatch(/aria-checked="true"[^>]*>LinkedIn</);
+    // a picture plan has no platform row: the picture is made first and sent to each platform after
+    expect(render({ kind: "image" })).not.toContain("Where will you post it?");
+  });
+
+  it("the platform row says what it cannot show: loading, a failed read, no account connected, and keeps a plan's platform that is not connected now", () => {
+    expect(render({ kind: "words", platforms: { state: "loading", choices: [] } })).toContain("Finding your connected accounts");
+    expect(render({ kind: "words", platforms: { state: "failed", choices: [] } })).toContain("couldn&#x27;t read your connected accounts");
+    expect(render({ kind: "words", platforms: { state: "failed", choices: [] } })).toContain("Retry");
+    const none = render({ kind: "words", platforms: { state: "ready", choices: [] } });
+    expect(none).toContain("No account is connected yet");
+    expect(none).toContain("/dashboard/integrations");
+    expect(render({ kind: "words", platform: "threads", platforms: { state: "ready", choices: [] } })).toMatch(/aria-checked="true"[^>]*>Threads</);
   });
 
   it("a words-only plan with the writer off shows the text-ad coming-soon card, never the picture maker's", () => {

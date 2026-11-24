@@ -15,6 +15,7 @@ import type { PostFormat } from "@/lib/api/creative";
 import { LINE_MAX, STUDIO_LANGUAGES, STUDIO_PATHS, type PlanBlock, type StudioRefusal } from "@/lib/studio-flow";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
+import { channelLabel } from "@/lib/studio-publish";
 import { cn } from "@/lib/utils";
 
 const B = STUDIO_COPY.brief;
@@ -43,6 +44,11 @@ export interface BriefViewProps {
   format: PostFormat;
   count: 3 | 4;
   noAiPeople: boolean;
+  /** Words only: the platform the words are written for (a channel key), or null while none is chosen. */
+  platform: string | null;
+  /** The platforms the business can write for: its connected channels. `loading` and `failed` are said, never an empty list. */
+  platforms: { state: "loading" | "ready" | "failed"; choices: Array<{ key: string; label: string }> };
+  onRetryPlatforms: () => void;
   proTools: boolean;
   /** Is making previews switched on? false = the designed coming-soon card replaces the price and the button. */
   previews: "on" | "coming_soon" | "unknown";
@@ -65,6 +71,7 @@ export interface BriefViewProps {
   onCount: (v: 3 | 4) => void;
   onKind: (v: "image" | "words") => void;
   onNoAiPeople: (v: boolean) => void;
+  onPlatform: (v: string | null) => void;
   onChangeProducts: () => void;
   onRemoveProduct: (id: string) => void;
   /** Renders the "Add a photo" control for a product (the Drive picker); a slot so this view stays free of it. */
@@ -98,6 +105,57 @@ function LanguageField({ value, onChange }: { value: string; onChange: (v: strin
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * Words only: the platform is chosen BEFORE the words are written, so they are written to its limits. "Not sure yet" is the default and writes for Facebook and
+ * Instagram; the other choices are the channels the business has connected (a platform the plan already holds stays on the list while it is not connected).
+ */
+function PlatformField({ value, platforms, onChange, onRetry }: { value: string | null; platforms: BriefViewProps["platforms"]; onChange: (v: string | null) => void; onRetry: () => void }) {
+  const P = B.wordsPlan.platform;
+  const choices = value && !platforms.choices.some((c) => c.key === value) ? [{ key: value, label: channelLabel(value) }, ...platforms.choices] : platforms.choices;
+  return (
+    <section aria-labelledby="studio-platform-label" className="space-y-1.5" data-slot="studio-brief-platform">
+      <h2 id="studio-platform-label" className="text-sm font-medium">
+        {P.label}
+      </h2>
+      {platforms.state === "loading" && <p className="text-sm text-muted-foreground">{P.loading}</p>}
+      {platforms.state === "failed" && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <p>{P.failed}</p>
+          <Button type="button" variant="outline" size="sm" className="h-11 sm:h-8" onClick={onRetry}>
+            {STUDIO_COPY.quote.retry}
+          </Button>
+        </div>
+      )}
+      {platforms.state === "ready" && choices.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {P.connectNone}{" "}
+          <Link href="/dashboard/integrations" className="underline underline-offset-2">
+            {P.connect}
+          </Link>
+        </p>
+      )}
+      <div role="radiogroup" aria-labelledby="studio-platform-label" className="grid grid-cols-2 gap-2">
+        {[{ key: null, label: P.none }, ...choices].map((c) => (
+          <button
+            key={c.key ?? "none"}
+            type="button"
+            role="radio"
+            aria-checked={value === c.key}
+            onClick={() => onChange(c.key)}
+            className={cn(
+              "min-h-11 rounded-md border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              value === c.key ? "border-primary bg-primary/10 font-medium" : "bg-background",
+            )}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{value === null ? `${P.noneHint} ${P.hint}` : P.hint}</p>
+    </section>
   );
 }
 
@@ -286,6 +344,9 @@ export function BriefView(p: BriefViewProps) {
           {B.line.hint} {B.line.counter(p.line.length, LINE_MAX)}
         </p>
       </section>
+
+      {/* Words only: the platform is chosen before the words are written */}
+      {words && <PlatformField value={p.platform} platforms={p.platforms} onChange={p.onPlatform} onRetry={p.onRetryPlatforms} />}
 
       {/* 4. Where it will go: the shape of the preview (a words-only post has no picture, so no shape) */}
       {!words && (

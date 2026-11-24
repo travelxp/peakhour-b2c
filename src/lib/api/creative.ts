@@ -160,6 +160,8 @@ export interface LibraryItem {
   master: { finalId: string; width: number | null; height: number | null } | null;
   /** The platform sizes that are made (a size that still needs more background is not here). */
   versions: Array<{ id: string; label: string; channel: string; width: number; height: number; state: "ready" | "scheduled" | "published" }>;
+  /** Words only (a words creative has no picture): how many options are in play, how many are approved, the one the tile shows and the platform it was written for. Null on a picture. */
+  words: { options: number; approved: number; card: { headline: string; primaryText: string; description: string | null; cta: string | null; hashtags: string[] } | null; platform: string | null } | null;
   actions: { download: boolean; newVersion: boolean; delete: boolean; deleteBlock: "making" | null };
 }
 
