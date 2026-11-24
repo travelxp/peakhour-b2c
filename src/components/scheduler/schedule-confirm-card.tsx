@@ -15,6 +15,7 @@ import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { channelDisplayName, formatScheduleLabel } from "@/lib/scheduler/format";
+import { bestTimeLine, type BestTimeView } from "@/lib/scheduler/best-times";
 import type { PreviewTimeResponse } from "@/lib/scheduler/types";
 
 export interface ScheduleConfirmCardProps {
@@ -22,6 +23,8 @@ export interface ScheduleConfirmCardProps {
   preview?: PreviewTimeResponse;
   loading?: boolean;
   error?: string | null;
+  /** The business's best time per channel (`useBestTimes`): each row says it, own or typical. */
+  bestTimes?: Record<string, BestTimeView>;
   className?: string;
 }
 
@@ -30,6 +33,7 @@ export function ScheduleConfirmCard({
   preview,
   loading,
   error,
+  bestTimes,
   className,
 }: ScheduleConfirmCardProps) {
   if (loading) {
@@ -92,6 +96,11 @@ export function ScheduleConfirmCard({
                       : "no time resolved"}
                   </span>
                 </div>
+                {bestTimeLine(bestTimes?.[r.channel]) && (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {bestTimeLine(bestTimes?.[r.channel])}
+                  </div>
+                )}
                 {r.audit && r.audit.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {r.audit.map((note) => (

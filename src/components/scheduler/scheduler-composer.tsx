@@ -49,6 +49,7 @@ import { ScheduleConflictWarning } from "./schedule-conflict-warning";
 import { TimezoneBanner } from "./timezone-banner";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
+import { useBestTimes } from "./use-best-times";
 import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
 import { AUTO_APPROVE_CALLOUT, showAutoApproveCallout } from "./auto-approve-callout";
 import { LocalPostOptions } from "./local-post-options";
@@ -256,6 +257,8 @@ export function SchedulerComposer({
     [anchor, timezone, strategy, channels, listingActive],
   );
   const { preview, loading, error } = useSchedulePreview(previewInput);
+  // The business's own best time on each selected channel (or the channel's typical one), said under each channel's resolved time.
+  const bestTimes = useBestTimes(channels.map((c) => c.channel));
 
   // ★THE LISTING RIDES ALONG, IT DOES NOT REPLACE. A merchant can also
   // schedule to the listing ALONE — the panel is the only target then, and the
@@ -430,6 +433,7 @@ export function SchedulerComposer({
         preview={preview}
         loading={loading}
         error={error}
+        bestTimes={bestTimes}
       />
 
       <ScheduleConflictWarning preview={preview} />
