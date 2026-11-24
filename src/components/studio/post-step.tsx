@@ -391,7 +391,8 @@ export function PostStep({
       submitLabel={P.scheduleIt}
       hideListingOption
       onScheduled={(r) => {
-        void confirm(ids, "scheduled", channels);
+        // only the channels the plan was committed for are recorded, never every channel the sheet offered
+        void confirm(ids, "scheduled", [...new Set(r.resolvedTimes.map((t) => t.channel as string))]);
         const at = r.resolvedTimes[0]?.scheduledAtUtc;
         setDone({ text: P.scheduled(at ? new Date(at).toLocaleString() : "") });
       }}

@@ -19,7 +19,7 @@ import { RefusalNote } from "@/components/studio/refusal-note";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useConnectedChannels, useHeart, usePress, usePressQuote, useSkip, useStudioAbilities } from "@/hooks/use-studio-flow";
 import type { CreativeView, PreviewView, WordsSent } from "@/lib/api/creative-studio";
-import { creativePhase, isActionable, makingProgress, receiptsOf, STUDIO_PATHS, studioRefusal, type StudioRefusal } from "@/lib/studio-flow";
+import { creativePhase, isActionable, makingProgress, receiptsOf, sentState, STUDIO_PATHS, studioRefusal, type StudioRefusal } from "@/lib/studio-flow";
 import { channelLabel, STUDIO_CHANNELS } from "@/lib/studio-publish";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
@@ -27,13 +27,13 @@ import { cn } from "@/lib/utils";
 
 const W = STUDIO_COPY.words;
 
-/** "Posted on Facebook, Instagram" / "Scheduled on LinkedIn": what a used option says about itself (posted wins), or null while it has gone nowhere. */
+/** "Posted on Facebook, Instagram. Scheduled on LinkedIn.": all of where a used option went, or null while it has gone nowhere (an ad row alone is not a post). */
 export function sentLine(sent: WordsSent | null | undefined): string | null {
-  if (!sent) return null;
+  if (!sent || !sentState(sent)) return null;
   const names = (cs: string[]) => cs.map(channelLabel).join(", ");
-  if (sent.posted.length > 0) return W.sent.posted(names(sent.posted));
-  if (sent.scheduled.length > 0) return W.sent.scheduled(names(sent.scheduled));
-  return null;
+  // a channel that was scheduled and then posted is told once, as posted
+  const scheduled = sent.scheduled.filter((c) => !sent.posted.includes(c));
+  return [sent.posted.length > 0 ? W.sent.posted(names(sent.posted)) : "", scheduled.length > 0 ? W.sent.scheduled(names(scheduled)) : ""].filter(Boolean).join(". ");
 }
 
 /** One option card (S20): the headline, the main text, the description, the button and the hashtags, with the heart and "Not for me". */
@@ -250,7 +250,7 @@ export function WordsUseSheet({ open, onOpenChange, creativeId, preview }: { ope
   const mobile = useIsMobile();
   // An option that was already posted or scheduled asks first; every other starts at the channels. The first step is read from the option, so it is right whenever the sheet opens.
   const [chosen, setChosen] = useState<"channels" | "post" | null>(null);
-  const used = sentLine(preview?.sent) !== null;
+  const used = sentState(preview?.sent) !== null;
   const step: "again" | "channels" | "post" = chosen ?? (used ? "again" : "channels");
   const setStep = (s: "channels" | "post") => setChosen(s);
   const close = (o: boolean) => {

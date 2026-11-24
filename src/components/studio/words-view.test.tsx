@@ -116,8 +116,9 @@ describe("words only: an option that was used", () => {
     expect(sentLine({ posted: [], scheduled: [], inAd: true })).toBeNull();
   });
 
-  it("posted wins over scheduled when both are there", () => {
-    expect(sentLine({ posted: ["facebook"], scheduled: ["linkedin"], inAd: false })).toBe("Posted on Facebook");
+  it("tells both where it was posted and where it is scheduled, and a channel that went from scheduled to posted once, as posted", () => {
+    expect(sentLine({ posted: ["facebook"], scheduled: ["linkedin"], inAd: false })).toBe("Posted on Facebook. Scheduled on LinkedIn");
+    expect(sentLine({ posted: ["facebook"], scheduled: ["facebook"], inAd: false })).toBe("Posted on Facebook");
   });
 
   it("asks first, says where it went, and offers Yes and No", () => {
