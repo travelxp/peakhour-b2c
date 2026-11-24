@@ -28,7 +28,7 @@ import {
 const channelKey = (p: string): string => (p.toLowerCase() === "twitter" ? "x" : p.toLowerCase());
 
 /** A platform key as a merchant reads it: the shared channel labels, with the old "twitter" key folded into X. */
-const platformLabel = (p: string): string => channelLabel(p.toLowerCase() === "twitter" ? "x" : p.toLowerCase());
+const platformLabel = (p: string): string => channelLabel(channelKey(p));
 
 /** What this screen says about a batch that can no longer be decided here. */
 export function closedSentence(b: RepurposedBatch): string {
@@ -138,26 +138,29 @@ export function RepurposedReview({ id }: { id: string }) {
   }
 
   const showBoxes = batch.canDecide && canEdit;
+  // The api reads ONE first comment per channel (the channel's first variant), so only that variant gets a box.
+  const hasBox = (index: number): boolean => batch.variants.findIndex((x) => channelKey(x.platform) === channelKey(batch.variants[index]!.platform)) === index;
   /** What this variant's box shows: the person's own words if they typed (or cleared it), else the writer's suggestion. */
   const commentOf = (v: RepurposedBatch["variants"][number]): string => edits[channelKey(v.platform)] ?? v.firstComment ?? "";
   /** The boxes the person changed from what was suggested: sent with the approval, blank clearing the suggestion. */
   const changedComments = (): Record<string, string> => {
     const out: Record<string, string> = {};
-    for (const v of batch.variants) {
+    for (const [i, v] of batch.variants.entries()) {
+      if (!hasBox(i)) continue;
       const channel = channelKey(v.platform);
       if (edits[channel] !== undefined && edits[channel]!.trim() !== (v.firstComment ?? "").trim()) out[channel] = edits[channel]!.trim();
     }
     return out;
   };
   // A comment over its channel's length cannot be approved: the api would refuse it, and says so here first.
-  const tooLong = showBoxes && batch.variants.some((v) => firstCommentOverBy(firstCommentRuleOf(rules.data, channelKey(v.platform)), commentOf(v)) > 0);
+  const tooLong = showBoxes && batch.variants.some((v, i) => hasBox(i) && firstCommentOverBy(firstCommentRuleOf(rules.data, channelKey(v.platform)), commentOf(v)) > 0);
 
   async function run(decision: "approve" | "reject") {
     // One decision at a time: a second confirm while one is in flight (or its refetch is landing) is ignored.
     if (decide.isPending) return;
     try {
       const firstComments = decision === "approve" ? changedComments() : undefined;
-      const res = await decide.mutateAsync({ decision, ...(firstComments ? { firstComments } : {}) });
+      const res = await decide.mutateAsync(decision === "approve" ? { decision, ...(firstComments ? { firstComments } : {}) } : { decision });
       // Already decided elsewhere (WhatsApp, a teammate): say so, as information, not as this click's success.
       (res.alreadyDecided ? toast.info : toast.success)(res.message);
       setAnnouncement(res.message);
@@ -200,7 +203,7 @@ export function RepurposedReview({ id }: { id: string }) {
               {v.hook && <p className="mt-1 text-sm font-medium">{v.hook}</p>}
               <p className="mt-2 whitespace-pre-wrap text-sm">{v.text}</p>
               {v.hashtags.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{v.hashtags.join(" ")}</p>}
-              {showBoxes && (
+              {showBoxes && hasBox(i) && (
                 <div className="mt-3">
                   <FirstCommentField
                     channel={channelKey(v.platform)}

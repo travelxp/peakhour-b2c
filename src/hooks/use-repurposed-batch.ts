@@ -72,15 +72,14 @@ export function useRepurposedBatch(id: string) {
 }
 
 /** A decision, with (for an approval) the first comments the person left different from what was suggested: channel -> text, blank to clear. */
-export interface RepurposedDecisionInput {
-  decision: "approve" | "reject";
-  firstComments?: Record<string, string>;
-}
+export type RepurposedDecisionInput = { decision: "approve"; firstComments?: Record<string, string> } | { decision: "reject" };
 
 export function useDecideRepurposedBatch(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ decision, firstComments }: RepurposedDecisionInput) => {
+    mutationFn: (input: RepurposedDecisionInput) => {
+      const { decision } = input;
+      const firstComments = input.decision === "approve" ? input.firstComments : undefined;
       const url = `/v1/content/repurposed/${encodeURIComponent(id)}/${decision}`;
       // No body unless the person changed a first comment: an approval with nothing to say about it is the same request it always was.
       return firstComments && Object.keys(firstComments).length > 0

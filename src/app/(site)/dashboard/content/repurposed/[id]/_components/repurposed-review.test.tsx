@@ -438,7 +438,21 @@ describe("RepurposedReview: the first comment", () => {
     expect(boxes()).toHaveLength(0);
   });
 
-  it("a viewer who cannot approve sees no boxes", async () => {
+  it("two variants on one channel get one box (the api reads one comment per channel), and the old twitter key is X", async () => {
+    serve(
+      batch({
+        variants: [
+          { platform: "twitter", text: "first", hook: null, hashtags: [], firstComment: "first suggestion" },
+          { platform: "x", text: "second", hook: null, hashtags: [], firstComment: "second suggestion" },
+        ],
+        approveEffect: [],
+      }),
+    );
+    await mount();
+    expect(boxes().map((b) => b.value)).toEqual(["first suggestion"]);
+  });
+
+    it("a viewer who cannot approve sees no boxes", async () => {
     h.role = "viewer";
     serve(withSuggestions());
     await mount();
