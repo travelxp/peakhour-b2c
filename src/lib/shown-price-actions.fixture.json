@@ -22,6 +22,10 @@
   },
   "shopify": {
     "contentIdeas": ["content_ideas"],
-    "contentCompose": ["content_compose"]
+    "contentCompose": ["content_compose"],
+    "contentRefresh": ["content_refresh"],
+    "fixSearchText": ["seo.meta_draft", "seo.shorten"],
+    "fixMetaDescription": ["seo.meta_draft"],
+    "fixProductDetails": ["commerce.product_enrich"]
   }
 }
