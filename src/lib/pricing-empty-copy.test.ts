@@ -137,3 +137,35 @@ describe("partialPlanCopy", () => {
     expect(partialPlanCopy({ ...base, truncated: true })).toContain("larger than one pass");
   });
 });
+
+describe("emptyPlanCopy: the reasons Smart Markdowns added", () => {
+  it("★held back, not sorted yet and routed elsewhere are not a clean shelf", () => {
+    for (const emptyReason of ["held_back", "not_routed_yet", "routed_elsewhere"] as const) {
+      const copy = emptyPlanCopy({ ...base, emptyReason });
+      expect(copy).not.toContain(CLEAN_SHELF);
+      expect(copy.length).toBeGreaterThan(40);
+    }
+    expect(emptyPlanCopy({ ...base, emptyReason: "held_back" })).toContain("held back on purpose");
+    expect(emptyPlanCopy({ ...base, emptyReason: "not_routed_yet" })).toContain("not been sorted yet");
+    expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere" })).toContain("handled another way");
+  });
+
+  it("★routed_elsewhere is not trusted on a store nobody looked at in full", () => {
+    expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", scanned: false })).toContain("synced");
+    expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", guardrails: { maxDiscountPct: 0 } })).toContain("switched off");
+    expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", truncated: true })).toContain("isn't the whole shelf");
+  });
+
+  it("★orders that could not be read beat every other reason, even a reassuring one", () => {
+    for (const emptyReason of ["clear", "routed_elsewhere", "held_back"] as const) {
+      const copy = emptyPlanCopy({ ...base, emptyReason, ordersConnected: false });
+      expect(copy).toContain("can't read your store's orders");
+      expect(copy).not.toContain(CLEAN_SHELF);
+    }
+  });
+
+  it("an api that predates ordersConnected is read as before", () => {
+    expect(emptyPlanCopy({ ...base, ordersConnected: undefined })).toContain(CLEAN_SHELF);
+    expect(emptyPlanCopy({ ...base, ordersConnected: true })).toContain(CLEAN_SHELF);
+  });
+});

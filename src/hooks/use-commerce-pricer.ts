@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import type { StartAnswer } from "@/lib/markdown-test";
 import { useAuth } from "@/providers/auth-provider";
 import { useActiveStore } from "@/providers/active-store-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
@@ -36,6 +37,14 @@ export interface PricingProposal {
   recoveredCapitalMinor: number | null;
   currency: string | null;
   reason: string;
+  /** C.3: the route that made this a candidate. Optional: an api that predates it sends none. */
+  route?: string;
+  /** C.4: false when a sellable variant has no cost per item (the depth is capped at the first step). */
+  costKnown?: boolean;
+  /** C.9: the old price is shown crossed out. Absent when the api cannot say (WooCommerce prices the product). */
+  struck?: boolean;
+  /** C.9: why there is no strike-through, when there is none. */
+  referenceNote?: string | null;
 }
 
 /**
@@ -58,6 +67,9 @@ export type PricingEmptyReason =
   | "markdowns_off"
   | "candidates_truncated"
   | "scan_truncated"
+  | "held_back"
+  | "not_routed_yet"
+  | "routed_elsewhere"
   | "clear";
 
 export interface PricingPlan {
@@ -69,8 +81,17 @@ export interface PricingPlan {
    *  returns at-risk products first and stops at 200). */
   truncatedCandidates?: boolean;
   emptyReason?: PricingEmptyReason;
+  /** False when the store's orders could not be read: every "nothing is slow" claim is then unproven. Optional on an older api. */
+  ordersConnected?: boolean;
   guardrails: PricerGuardrails;
   proposals: PricingProposal[];
+  /** C.3 test facts (read through `planFacts` in `@/lib/markdown-test`, which tolerates an api that sends none). */
+  cohortSize?: number;
+  slowTotal?: number;
+  waitingByRoute?: Record<string, number>;
+  waitingCandidates?: number;
+  waitingProducts?: Array<{ productId: string; sourceProductId: string; title: string; reason: string; route?: string }>;
+  tooFewToMeasure?: boolean;
   totalRecoveredCapitalMinor: number;
   currency: string | null;
 }
@@ -115,6 +136,48 @@ export function useProposePricing() {
     mutationFn: (sourceProductId: string) =>
       api.post<ProposePricingResult>(store.path("/v1/commerce/pricer/propose"), { sourceProductId }),
     onSettled: () => {
+      qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });
+    },
+  });
+}
+
+export const TESTS_KEY = "commerce-pricer-tests";
+
+/** The store's markdown tests, active and recent (GET /v1/commerce/pricer/tests), as the api sent them: read through `acceptTests`. */
+export function useMarkdownTests() {
+  const store = useActiveStore();
+  const { isAuthenticated, org } = useAuth();
+  return useQuery<unknown>({
+    queryKey: [TESTS_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<unknown>(store.path("/v1/commerce/pricer/tests")),
+    enabled: isAuthenticated && !!org?._id,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Start the test (POST /v1/commerce/pricer/test). Never rejects: it answers what came back, so `startOutcome` can tell a clear refusal
+ * from an answer that may have reached the store (a thrown request is `null`). ★A 409 MOVED or a start that may have run reloads the plan
+ * and the tests either way.
+ */
+export function useStartMarkdownTest() {
+  const store = useActiveStore();
+  const qc = useQueryClient();
+  const { org } = useAuth();
+  return useMutation<StartAnswer | null, never, string[]>({
+    mutationFn: async (expectedSourceProductIds) => {
+      try {
+        const data = await api.post<unknown>(store.path("/v1/commerce/pricer/test"), { expectedSourceProductIds });
+        return { ok: true, status: 200, data };
+      } catch (e) {
+        if (e instanceof ApiError) return { ok: false, status: e.status, data: { code: e.code, error: e.message } };
+        return null;
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: [PRICER_KEY, org?._id ?? null] });
+      qc.invalidateQueries({ queryKey: [TESTS_KEY, org?._id ?? null] });
       qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });
     },
   });
