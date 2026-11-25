@@ -50,6 +50,20 @@ const CANDIDATES_TRUNCATED =
   "Peakhour checks the most urgent products first and ran out of room, so some of your slow-moving stock wasn't examined — this isn't a clean bill of health.";
 
 /**
+ * ★THREE REASONS ARE NOT GOOD NEWS AND SAY SO (Smart Markdowns C.3): the slow stock is being held back on purpose, has not been sorted yet,
+ * or is being handled another way. None of them is "nothing is slow".
+ */
+const HELD_BACK =
+  "Your slow stock is being held back on purpose. Those products are tagged no-markdown, are in an offer or campaign, would fall under your margin floor at the depths allowed, or are waiting because the test budget is full. Untag a product or lower your margin floor to see more.";
+const NOT_ROUTED_YET =
+  "Your slow stock has not been sorted yet. Peakhour sorts it overnight and works out which products to test, and the plan appears here once it has. This is not the same as nothing being slow.";
+const ROUTED_ELSEWHERE =
+  "Nothing needs a markdown right now. Your slow stock is being handled another way: some is too new, some is waiting for its season or a rest after an earlier markdown, and some needs to be seen more rather than discounted. The reasons are below.";
+/** ★SALES COULD NOT BE READ: every other reason is a claim about sales, so none of them can be said. */
+const ORDERS_NOT_CONNECTED =
+  "Peakhour can't read your store's orders yet, so it can't tell which products are slow. Once your orders sync, the plan appears here.";
+
+/**
  * ★AN `emptyReason` THIS BUILD DOES NOT KNOW. The api's own switch omits a
  * `default` so a new reason is a compile error there; this mirror cannot have
  * that, because the api can ship a sixth reason to an SPA that has not
@@ -84,7 +98,16 @@ function legacyEmptyCopy(plan: PricingPlan): string {
   return CLEAR;
 }
 
+/** The cause that makes every later one moot: nothing synced, or a 0% ceiling. Null when neither. */
+function upstreamCause(plan: PricingPlan): string | null {
+  if (!plan.scanned) return NOT_SCANNED;
+  if (plan.guardrails.maxDiscountPct != null && plan.guardrails.maxDiscountPct <= 0) return MARKDOWNS_OFF;
+  return null;
+}
+
 export function emptyPlanCopy(plan: PricingPlan): string {
+  // ORDER ACCESS FIRST, WHATEVER THE API SAID: a store whose sales nobody could see is never "clear".
+  if (plan.ordersConnected === false) return ORDERS_NOT_CONNECTED;
   // ★"THE API IS OLD" AND "THE API SAID SOMETHING NEW" ARE OPPOSITE SITUATIONS,
   // and one `default` arm was treating them as the same. An absent field means
   // an api that predates it, where the legacy flags genuinely can explain three
@@ -102,6 +125,18 @@ export function emptyPlanCopy(plan: PricingPlan): string {
       return CANDIDATES_TRUNCATED;
     case "scan_truncated":
       return SCAN_TRUNCATED;
+    // ★THEIR ADVICE ASSUMES THE PLAN COULD BE BUILT: with nothing synced or markdowns switched off, the cause to name is that one.
+    case "held_back":
+      return upstreamCause(plan) ?? HELD_BACK;
+    case "not_routed_yet":
+      return upstreamCause(plan) ?? NOT_ROUTED_YET;
+    // ★THE TWO "NOTHING IS WRONG HERE" REASONS ARE NOT TAKEN ON TRUST: a catalog that has not synced, a 0% ceiling and a truncated scan each
+    // mean nobody looked, whatever the api concluded.
+    case "routed_elsewhere": {
+      if (plan.truncatedCandidates) return CANDIDATES_TRUNCATED;
+      const legacy = legacyEmptyCopy(plan);
+      return legacy === CLEAR ? ROUTED_ELSEWHERE : legacy;
+    }
     case "clear":
       return CLEAR;
     // ★`none` MEANS THE PLAN IS NOT EMPTY, so reaching it here is impossible by
