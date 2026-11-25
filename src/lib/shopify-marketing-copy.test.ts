@@ -75,7 +75,7 @@ describe("shopifyFaq", () => {
     const faq = shopifyFaq({ trialDays: 9, peaksIncluded: "7,777" });
     const all = faq.map((f) => f.a).join(" ");
     expect(all).toContain("9 days");
-    expect(all).toContain("7,777 a month");
+    expect(all).toContain("7,777 Peaks a month");
     expect(all).toContain("top-ups on peakhour.ai");
   });
   it("promises no trial and no number the catalog does not give", () => {

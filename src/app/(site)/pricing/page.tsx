@@ -255,7 +255,7 @@ export default async function PricingPage({
             <ContextualLinks
               className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
               links={[
-                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "What Peaks pay for, and how top-ups work." },
+                { label: "Peaks, what pays for the AI work", href: pathFor("peaks"), note: "What Peaks pay for, and how top-ups work." },
                 { label: "Agency and Enterprise plans", href: pathFor("pricing.teams"), note: "Many businesses under one account." },
                 { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "Install it and be billed through Shopify." },
                 { label: "How Peakhour works", href: pathFor("how.it.works"), note: "Connect, approve, then let it run." },

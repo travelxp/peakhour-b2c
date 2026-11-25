@@ -407,13 +407,13 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
       },
       {
         id: "ai-credits",
-        title: "AI credits (Peaks)",
-        does: "Peakhour uses AI credits (Peaks) for writing, answering and analysing. Your plan includes a monthly amount, and you can buy more on peakhour.ai.",
+        title: "Peaks",
+        does: "Peakhour uses Peaks for writing, answering and analysing. Your plan includes a monthly amount, and you can buy more on peakhour.ai.",
         benefit: "You see what is left and are warned before you run out.",
         steps: [
           "Check your balance in the app.",
           "Buy a top-up on peakhour.ai if you need one.",
-          "Credits renew every month.",
+          "Peaks renew every month.",
         ],
       },
     ],
@@ -642,10 +642,10 @@ export function shopifyFaq({
       a: "Through Shopify. Shopify bills you for Peakhour Suite.",
     },
     {
-      q: "What are AI credits?",
+      q: "What are Peaks?",
       a: peaksIncluded
-        ? `AI credits (Peaks) pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes ${peaksIncluded} a month, and you can buy top-ups on peakhour.ai.`
-        : "AI credits (Peaks) pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes a monthly amount, and you can buy top-ups on peakhour.ai.",
+        ? `Peaks pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes ${peaksIncluded} Peaks a month, and you can buy top-ups on peakhour.ai.`
+        : "Peaks pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes a monthly amount, and you can buy top-ups on peakhour.ai.",
     },
     {
       q: "Can I use it on more than one store?",

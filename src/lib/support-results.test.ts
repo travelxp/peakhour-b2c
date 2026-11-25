@@ -167,8 +167,8 @@ describe("the ratings switch", () => {
 describe("the copy a merchant reads", () => {
   const all = [...DEFINITIONS.map((d) => `${d.term} ${d.text}`), formatWait(null), formatRating(null), formatPercent(null)].join(" ");
 
-  it("never shows a retired name or jargon, and says AI credits, never Peaks", () => {
-    for (const bad of [/\bPeaks\b/, /\bLens\b/, /Peakhour Commerce/, /Commerce Assistant/, /\bholdout\b/i, /\blift\b/i, /\bagent\b/i, /Growth Council/]) expect(all).not.toMatch(bad);
+  it("never shows a retired name or jargon, and never says AI credits", () => {
+    for (const bad of [/AI credit/i,/\bLens\b/, /Peakhour Commerce/, /Commerce Assistant/, /\bholdout\b/i, /\blift\b/i, /\bagent\b/i, /Growth Council/]) expect(all).not.toMatch(bad);
   });
 
   it("every definition is a plain sentence and the revenue one says it is an estimate", () => {

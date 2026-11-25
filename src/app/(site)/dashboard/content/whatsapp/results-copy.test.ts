@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * C8 (2026-11-04): what a merchant reads about WhatsApp results. One rule across Peakhour: AI credits are for a task Peakhour does,
+ * C8 (2026-11-04): what a merchant reads about WhatsApp results. One rule across Peakhour: Peaks are for a task Peakhour does,
  * never for a result it claims credit for, so no screen may say a result is billed, and none may show a price beside one.
  *
  * The pages are read as text (they are client components with no unit seam); the exact new sentences are pinned, and the old
@@ -21,14 +21,14 @@ describe("the WhatsApp results page", () => {
   it("says the figures are for information and that credits are for the assistant's work, not for these results", () => {
     expect(ANALYTICS).toContain("What the assistant reached, last {outcomes.data?.windowDays ?? 30} days");
     expect(ANALYTICS).toContain(
-      "What your WhatsApp assistant reached. These are counts for your information. AI credits are used for the work the assistant does, such as each reply, not for these results.",
+      "What your WhatsApp assistant reached. These are counts for your information. Peaks are used for the work the assistant does, such as each reply, not for these results.",
     );
   });
 
-  it("shows the two counts, and no AI credits figure and no breakdown by product", () => {
+  it("shows the two counts, and no Peaks figure and no breakdown by product", () => {
     expect(ANALYTICS).toContain('title="Resolved conversations"');
     expect(ANALYTICS).toContain('title="Orders the assistant helped with"');
-    expect(ANALYTICS).not.toContain("AI credits spent");
+    expect(ANALYTICS).not.toContain("Peaks spent");
     expect(ANALYTICS).not.toContain("Outcomes by product");
     expect(ANALYTICS).not.toContain("totalPeaks");
     expect(ANALYTICS).not.toContain("byPillar");
@@ -51,7 +51,7 @@ describe("the WhatsApp hub card", () => {
   it("is called Results and describes figures, not a bill", () => {
     expect(HUB).toContain('<h2 className="text-sm font-medium">Results</h2>');
     expect(HUB).toContain("Support results, resolved conversations, and orders your assistant helped with. These are figures for your information.");
-    expect(HUB).not.toContain("AI credits spent");
+    expect(HUB).not.toContain("Peaks spent");
   });
 });
 

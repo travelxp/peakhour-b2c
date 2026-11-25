@@ -9,7 +9,7 @@ import { trialFaq, type SignupModeInput } from "@/lib/trial-copy";
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across everything in Peakhour Suite. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
+    a: "Peaks are one shared wallet across everything in Peakhour Suite. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
   },
   {
     q: "Do I have to buy the parts separately?",

@@ -117,7 +117,7 @@ describe("price, trial and credits come from the catalog", () => {
     expect(t).toContain("9-day free trial · billed through Shopify");
     expect(t).toContain("$61");
     expect(t).toContain("7,777");
-    expect(t).toContain("AI credits (Peaks) a month");
+    expect(t).toContain("Peaks a month");
   });
 
   it("★never says 'No card to start' (the trial is billed through Shopify)", () => {

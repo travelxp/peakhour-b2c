@@ -676,7 +676,7 @@ describe("Generate", () => {
     });
     click(buttonByText("Make an image"));
     await flush();
-    expect(h.toastError).toHaveBeenCalledWith("You don't have enough AI credits for this.", expect.objectContaining({ description: "You need 40 credits and have 10." }));
+    expect(h.toastError).toHaveBeenCalledWith("You don't have enough Peaks for this.", expect.objectContaining({ description: "You need 40 credits and have 10." }));
     expect(onSelect).not.toHaveBeenCalled();
   });
 

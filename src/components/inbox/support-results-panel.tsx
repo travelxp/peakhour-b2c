@@ -292,7 +292,7 @@ export function SupportResultsPanel() {
       <div>
         <h3 className="text-base font-semibold tracking-tight">What the assistant reached, last {outcomes.data?.windowDays ?? 30} days</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          What your WhatsApp assistant reached. These are counts for your information. AI credits are used for the work the assistant does, such as each reply, not for these results.
+          What your WhatsApp assistant reached. These are counts for your information. Peaks are used for the work the assistant does, such as each reply, not for these results.
         </p>
       </div>
 
