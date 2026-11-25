@@ -156,6 +156,12 @@ describe("emptyPlanCopy: the reasons Smart Markdowns added", () => {
     expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", truncated: true })).toContain("isn't the whole shelf");
   });
 
+  it("★routed_elsewhere with slow stock crowded out is not reassuring either", () => {
+    const copy = emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", truncatedCandidates: true });
+    expect(copy).toContain("ran out of room");
+    expect(copy).not.toContain("handled another way");
+  });
+
   it("★orders that could not be read beat every other reason, even a reassuring one", () => {
     for (const emptyReason of ["clear", "routed_elsewhere", "held_back"] as const) {
       const copy = emptyPlanCopy({ ...base, emptyReason, ordersConnected: false });

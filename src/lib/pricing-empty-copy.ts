@@ -124,8 +124,11 @@ export function emptyPlanCopy(plan: PricingPlan): string {
       return NOT_ROUTED_YET;
     // ★THE TWO "NOTHING IS WRONG HERE" REASONS ARE NOT TAKEN ON TRUST: a catalog that has not synced, a 0% ceiling and a truncated scan each
     // mean nobody looked, whatever the api concluded.
-    case "routed_elsewhere":
-      return legacyEmptyCopy(plan) === CLEAR ? ROUTED_ELSEWHERE : legacyEmptyCopy(plan);
+    case "routed_elsewhere": {
+      if (plan.truncatedCandidates) return CANDIDATES_TRUNCATED;
+      const legacy = legacyEmptyCopy(plan);
+      return legacy === CLEAR ? ROUTED_ELSEWHERE : legacy;
+    }
     case "clear":
       return CLEAR;
     // ★`none` MEANS THE PLAN IS NOT EMPTY, so reaching it here is impossible by

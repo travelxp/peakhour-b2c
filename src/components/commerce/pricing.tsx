@@ -219,6 +219,8 @@ function TestPlan({ plan, money }: { plan: PricingPlan; money: Money }) {
   const [outcome, setOutcome] = useState<StartOutcome | null>(null);
 
   const onStart = useCallback(() => {
+    // A new press is a new answer: the last banner (a moved cohort, a started test) is not the state of this one.
+    setOutcome(null);
     start.mutate(
       proposals.map((p) => p.sourceProductId),
       { onSuccess: (answer) => setOutcome(startOutcome(answer, platform)) },
@@ -342,8 +344,8 @@ function Waiting({ facts }: { facts: ReturnType<typeof planFacts> }) {
             {r.says ? <p className="text-xs text-muted-foreground">{r.says}</p> : null}
             {r.products.length > 0 ? (
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                {r.products.map((w) => (
-                  <li key={w.sourceProductId || w.productId || w.title}>
+                {r.products.map((w, i) => (
+                  <li key={`${w.sourceProductId || w.productId || w.title}-${i}`}>
                     <span className="text-foreground">{w.title}</span>
                     {w.reason ? ` — ${w.reason}` : ""}
                   </li>
@@ -355,8 +357,8 @@ function Waiting({ facts }: { facts: ReturnType<typeof planFacts> }) {
         ))}
         {loose.length > 0 ? (
           <ul className="space-y-0.5 text-xs text-muted-foreground">
-            {loose.map((w) => (
-              <li key={w.sourceProductId || w.productId || w.title}>
+            {loose.map((w, i) => (
+              <li key={`${w.sourceProductId || w.productId || w.title}-${i}`}>
                 <span className="text-foreground">{w.title}</span>
                 {w.reason ? ` — ${w.reason}` : ""}
               </li>
@@ -370,8 +372,11 @@ function Waiting({ facts }: { facts: ReturnType<typeof planFacts> }) {
 
 /** "Your tests": each test in a chain with where it is, what is compared and what the weekly review said. Nothing is shown before one has run. */
 function YourTests() {
-  const { data, isError } = useMarkdownTests();
+  const { data, isError, error } = useMarkdownTests();
   const tests = acceptTests(data);
+  // ★AN API THAT PREDATES THE ROUTE (404/501) HAS NO LIST TO SHOW: that is not a failed read, and must not tell every merchant a test may be running.
+  const status = (error as { status?: number } | null)?.status;
+  if (isError && (status === 404 || status === 501)) return null;
   // ★A FAILED READ IS NOT "NO TESTS": the merchant may have one running, and an empty section would say they have not.
   if (isError) {
     return (
