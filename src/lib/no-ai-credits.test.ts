@@ -13,7 +13,7 @@ import ts from "typescript";
  * (src/content/seo/competitors): it quotes what that vendor calls its unit.
  */
 const ROOT = resolve(__dirname, "..", "..");
-const BAD = [/\bAI[\s-]+credits?\b/i, /\b(?:your|more|buy|add|top ?up|extra) credits\b/i, /\bcredit balance\b/i];
+const BAD = [/\bAI[\s-]+credits?\b/i, /\b(?:your|more|buy|add|top ?up|extra) credits\b/i, /\bcredit balance\b/i, /\b(?:uses|costs|the) credits\b/i, /\bcredits \(Peaks\)/i];
 const EXEMPT = [/^src\/content\/seo\/competitors\//];
 
 /**
@@ -25,12 +25,20 @@ const EXEMPT = [/^src\/content\/seo\/competitors\//];
 export const HELD: Record<string, string[]> = {
   "src/content/pages/commerce.ts": ["Each AI answer uses Peaks, the AI credits in Peakhour Suite. See the pricing page for the monthly allowance."],
   "src/content/pages/shopify.features.ai.seo.ts": ["AI credits (Peaks) and the Suite plan. The pricing page shows what the plan includes."],
-  "src/content/pages/shopify.features.ai.shopping.assistant.ts": ["Does the chat use AI credits?"],
+  "src/content/pages/feature-peakhour-summit.ts": ["The credits a question to Peakhour Summit is priced in."],
+  "src/content/pages/shopify.features.ai.shopping.assistant.ts": [
+    "Does the chat use AI credits?",
+    "Yes. Each AI answer uses credits (Peaks), and stores that have not paid get a smaller daily allowance. The pricing page shows what the plan includes.",
+  ],
   "src/lib/seo/pages.ts": [
     "Peaks: the AI credits behind every Peakhour feature",
     "Peaks are the AI credits behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
   ],
-  "src/lib/seo/capabilities.ts": ["Needs AI credits and the Suite plan."],
+  "src/lib/seo/capabilities.ts": [
+    "The AI call uses credits; unpaid stores get a smaller daily allowance.",
+    "Needs AI credits and the Suite plan.",
+    "A draft costs credits.",
+  ],
 };
 
 export function creditWording(text: string): boolean {
@@ -67,6 +75,8 @@ describe("the unit is Peaks, never AI credits", () => {
     expect(creditWording("Buy credits")).toBe(true);
     expect(creditWording("AI-credits left")).toBe(true);
     expect(creditWording("ai-credits")).toBe(false);
+    expect(creditWording("The AI call uses credits;")).toBe(true);
+    expect(creditWording("Each answer uses credits (Peaks)")).toBe(true);
     expect(creditWording("Uses your Peaks.")).toBe(false);
     expect(creditWording("CREDITS_EXHAUSTED")).toBe(false);
     expect(creditWording("No credit card required")).toBe(false);
