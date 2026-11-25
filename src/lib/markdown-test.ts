@@ -12,6 +12,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** ★OWN KEYS ONLY: a key the api sends that is on Object.prototype ("constructor") must fall back to itself, not resolve to a function. */
+const own = <T>(table: Record<string, T>, key: string): T | undefined => (Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined);
 
 // ── The plan ────────────────────────────────────────────────────────────────
 
@@ -61,7 +63,7 @@ export function planFacts(plan: unknown): PlanFacts {
 /** The headline over a plan that proposes a test. "Ready to test", because nothing has changed until the merchant starts it. */
 export function headlineOf(proposed: number, f: PlanFacts): string {
   const slow = f.slowTotal !== null && f.slowTotal >= proposed ? f.slowTotal : null;
-  return slow !== null ? `Ready to test ${proposed} of your ${slow} slow products` : `Ready to test ${plural(proposed, "product", "products")}`;
+  return slow !== null ? `Ready to test ${proposed} of your ${plural(slow, "slow product", "slow products")}` : `Ready to test ${plural(proposed, "product", "products")}`;
 }
 
 /** Said under the headline. A cohort under five cannot be measured, and a merchant is told before they press. */
@@ -88,7 +90,7 @@ export const ROUTE_WORDS: Record<string, { label: string; says: string }> = {
 const ROUTE_ORDER = Object.keys(ROUTE_WORDS);
 
 export function routeLabel(route: string): string {
-  return ROUTE_WORDS[route]?.label ?? route.replace(/_/g, " ");
+  return own(ROUTE_WORDS, route)?.label ?? route.replace(/_/g, " ");
 }
 
 export interface RouteRow {
@@ -113,7 +115,7 @@ export function waitingRows(f: PlanFacts): RouteRow[] {
   return keys.map((route) => ({
     route,
     label: routeLabel(route),
-    says: ROUTE_WORDS[route]?.says ?? "",
+    says: own(ROUTE_WORDS, route)?.says ?? "",
     count: f.waitingByRoute[route]!,
     products: f.waitingProducts.filter((w) => w.route === route),
   }));
@@ -165,7 +167,9 @@ export function proposalNotes(p: ProposalFields, platform: string | null = null)
   return {
     route: typeof p.route === "string" ? routeLabel(p.route) : null,
     struck,
-    referenceNote: struck || woo ? null : str(p.referenceNote),
+    // ★ONLY A STORE KNOWN TO BE SHOPIFY GETS ITS HOLD SENTENCE: with the platform unknown (the stores list did not load), a Woo merchant
+    // must not be told the old price is not crossed out.
+    referenceNote: struck || platform !== "shopify" ? null : str(p.referenceNote),
     needsCost: p.costKnown === false,
   };
 }
@@ -224,7 +228,8 @@ export function startOutcome(r: StartAnswer | null, platform: string | null = nu
   if (!r) return uncertain();
   const d = isObj(r.data) ? r.data : {};
   const woo = platform === "woocommerce";
-  const storeWord = woo ? "WooCommerce" : "Shopify";
+  // With the platform unknown the words stay neutral rather than naming a store that may be the wrong one.
+  const storeWord = woo ? "WooCommerce" : platform === "shopify" ? "Shopify" : "your store";
   if (r.ok) {
     const t = isObj(d.test) ? d.test : isObj(d) && "cohort" in d ? d : null;
     const onTest = t ? num(t.cohort) : null;
@@ -237,12 +242,12 @@ export function startOutcome(r: StartAnswer | null, platform: string | null = nu
     if (onTest === 0) {
       // Nothing is known to be on markdown, but an unknown answer may be: never "nothing was changed".
       if (unknown > 0) return uncertain(`We couldn't confirm ${plural(unknown, "product", "products")}, so we can't say whether the test started. Check Your tests below, and the Autopilot page, before you press Start again.`);
-      return { kind: "stopped", tone: "warning", message: ["None of the markdowns could be applied, so the test did not start. Nothing was changed.", ...(woo ? refusalSentences(results) : [])].join(" ") };
+      return { kind: "stopped", tone: "warning", message: ["None of the markdowns could be applied, so the test did not start. Nothing was changed.", ...(platform === "shopify" ? [] : refusalSentences(results))].join(" ") };
     }
     const parts = [`The test has started: ${plural(onTest, "product is", "products are")} on markdown${holdout ? `, and ${plural(holdout, "similar product is", "similar products are")} left at full price to compare` : ""}.`];
     if (refused > 0) {
       parts.push(`${plural(refused, "product was", "products were")} left out because ${storeWord} or a safety check refused the change.`);
-      if (woo) parts.push(...refusalSentences(results));
+      if (platform !== "shopify") parts.push(...refusalSentences(results));
     }
     if (unknown > 0) parts.push(`We couldn't confirm ${plural(unknown, "product", "products")}; check the Autopilot page.`);
     if (t?.tooFewToMeasure === true) parts.push("That is too few to measure a result reliably.");
@@ -257,6 +262,8 @@ export function startOutcome(r: StartAnswer | null, platform: string | null = nu
   if (r.status < 400 || r.status >= 500 || r.status === 408 || r.status === 429) return uncertain();
   if (r.status === 401 || r.status === 403) return { kind: "stopped", tone: "warning", message: "You don't have access to start this test. Nothing was changed." };
   if (r.status === 409 && code === "SWITCHED_OFF") return { kind: "stopped", tone: "info", message: said ?? "Price changes are not switched on for your store. Nothing was changed." };
+  // ★A 409 WITH A CODE THIS PAGE DOES NOT KNOW (a racing second start, a lock) may mean a test is already running: never "not started".
+  if (r.status === 409) return uncertain();
   return { kind: "stopped", tone: "warning", message: said ?? START_FAILED };
 }
 
@@ -329,7 +336,7 @@ export const DECISION_WORDS: Record<string, { label: string; tone: DecisionTone 
 export function decisionWords(t: TestRow): { label: string; tone: DecisionTone } {
   // A step that has ended with no decision recorded is not "running".
   if (t.decision === "running" && t.status !== "active" && t.status !== "unknown") return { label: "Ended", tone: "neutral" };
-  return DECISION_WORDS[t.decision] ?? { label: t.decision.replace(/_/g, " "), tone: "neutral" };
+  return own(DECISION_WORDS, t.decision) ?? { label: t.decision.replace(/_/g, " "), tone: "neutral" };
 }
 
 /** One line a merchant can read: where this step is and what is being compared. */

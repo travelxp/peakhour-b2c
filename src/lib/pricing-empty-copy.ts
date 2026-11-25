@@ -98,6 +98,13 @@ function legacyEmptyCopy(plan: PricingPlan): string {
   return CLEAR;
 }
 
+/** The cause that makes every later one moot: nothing synced, or a 0% ceiling. Null when neither. */
+function upstreamCause(plan: PricingPlan): string | null {
+  if (!plan.scanned) return NOT_SCANNED;
+  if (plan.guardrails.maxDiscountPct != null && plan.guardrails.maxDiscountPct <= 0) return MARKDOWNS_OFF;
+  return null;
+}
+
 export function emptyPlanCopy(plan: PricingPlan): string {
   // ORDER ACCESS FIRST, WHATEVER THE API SAID: a store whose sales nobody could see is never "clear".
   if (plan.ordersConnected === false) return ORDERS_NOT_CONNECTED;
@@ -118,10 +125,11 @@ export function emptyPlanCopy(plan: PricingPlan): string {
       return CANDIDATES_TRUNCATED;
     case "scan_truncated":
       return SCAN_TRUNCATED;
+    // ★THEIR ADVICE ASSUMES THE PLAN COULD BE BUILT: with nothing synced or markdowns switched off, the cause to name is that one.
     case "held_back":
-      return HELD_BACK;
+      return upstreamCause(plan) ?? HELD_BACK;
     case "not_routed_yet":
-      return NOT_ROUTED_YET;
+      return upstreamCause(plan) ?? NOT_ROUTED_YET;
     // ★THE TWO "NOTHING IS WRONG HERE" REASONS ARE NOT TAKEN ON TRUST: a catalog that has not synced, a 0% ceiling and a truncated scan each
     // mean nobody looked, whatever the api concluded.
     case "routed_elsewhere": {

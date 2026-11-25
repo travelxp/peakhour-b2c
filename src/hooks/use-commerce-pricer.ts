@@ -11,8 +11,8 @@ import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
  * Commerce Pricer hooks (P2.4/P2.5). `usePricer` reads the free, guardrail-
  * bounded markdown plan (GET /v1/commerce/pricer); `usePricerBrief` runs the
  * paid AI pricing brief (POST /v1/commerce/pricer/brief, Peaks-metered);
- * `useProposePricing` records a markdown intent as a proposed cmrc_actions row
- * (POST /v1/commerce/pricer/propose).
+ * `useStartMarkdownTest` starts the cohort as ONE test (POST /v1/commerce/pricer/test)
+ * and `useMarkdownTests` reads the running ones (GET /v1/commerce/pricer/tests).
  */
 
 export interface PricerGuardrails {
@@ -119,25 +119,6 @@ export function usePricerBrief() {
   const store = useActiveStore();
   return useMutation<PricerBrief, Error>({
     mutationFn: () => api.post<PricerBrief>(store.path("/v1/commerce/pricer/brief"), {}),
-  });
-}
-
-export interface ProposePricingResult {
-  actionId: string | null;
-  proposal: PricingProposal;
-}
-
-export function useProposePricing() {
-  const store = useActiveStore();
-  const qc = useQueryClient();
-  const { org } = useAuth();
-  // ★ApiError, so a caller reads `code` (LIVE_MARKDOWN) without a cast.
-  return useMutation<ProposePricingResult, ApiError, string>({
-    mutationFn: (sourceProductId: string) =>
-      api.post<ProposePricingResult>(store.path("/v1/commerce/pricer/propose"), { sourceProductId }),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });
-    },
   });
 }
 

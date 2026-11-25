@@ -156,6 +156,13 @@ describe("emptyPlanCopy: the reasons Smart Markdowns added", () => {
     expect(emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", truncated: true })).toContain("isn't the whole shelf");
   });
 
+  it("held_back and not_routed_yet name an upstream cause first: nothing synced, markdowns off", () => {
+    for (const emptyReason of ["held_back", "not_routed_yet"] as const) {
+      expect(emptyPlanCopy({ ...base, emptyReason, scanned: false })).toContain("synced");
+      expect(emptyPlanCopy({ ...base, emptyReason, guardrails: { maxDiscountPct: 0 } })).toContain("switched off");
+    }
+  });
+
   it("★routed_elsewhere with slow stock crowded out is not reassuring either", () => {
     const copy = emptyPlanCopy({ ...base, emptyReason: "routed_elsewhere", truncatedCandidates: true });
     expect(copy).toContain("ran out of room");

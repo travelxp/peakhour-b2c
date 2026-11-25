@@ -66,7 +66,7 @@ export function CommercePricing() {
 }
 
 function PricingBody() {
-  const { data, isLoading, isError } = usePricer();
+  const { data, isLoading } = usePricer();
   const { formatNumber } = useLocale();
 
   const money = useCallback(
@@ -91,7 +91,9 @@ function PricingBody() {
     );
   }
 
-  if (isError || !data) {
+  // ★ONLY WHEN THERE IS NOTHING TO SHOW: a refetch that fails right after a start (it is invalidated) keeps the plan on screen, and the start
+  // answer with it. Showing the "connect a store" screen over it would throw the answer away.
+  if (!data) {
     return (
       <PageShell width="standard">
         <Header />

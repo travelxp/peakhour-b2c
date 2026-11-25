@@ -42,6 +42,7 @@ describe("headline", () => {
   it("boundary: slowTotal equal to the cohort still names it; smaller does not", () => {
     expect(headlineOf(8, planFacts(api({ slowTotal: 8 })))).toBe("Ready to test 8 of your 8 slow products");
     expect(headlineOf(8, planFacts(api({ slowTotal: 7 })))).toBe("Ready to test 8 products");
+    expect(headlineOf(1, planFacts(api({ slowTotal: 1 })))).toBe("Ready to test 1 of your 1 slow product");
     expect(headlineOf(1, planFacts({}))).toBe("Ready to test 1 product");
   });
   it("says a cohort under five is too few to measure; the api's word wins, 5 is enough", () => {
@@ -83,7 +84,7 @@ describe("showWaiting", () => {
 describe("proposalNotes", () => {
   it("strike-through only when the api says struck, and the note only when it is not", () => {
     expect(proposalNotes({ struck: true, referenceNote: "ignored" })).toMatchObject({ struck: true, referenceNote: null });
-    expect(proposalNotes({ struck: false, referenceNote: "Not crossed out yet." })).toMatchObject({ struck: false, referenceNote: "Not crossed out yet." });
+    expect(proposalNotes({ struck: false, referenceNote: "Not crossed out yet." }, "shopify")).toMatchObject({ struck: false, referenceNote: "Not crossed out yet." });
     expect(proposalNotes({})).toMatchObject({ struck: false, referenceNote: null, needsCost: false, route: null });
   });
   it("costKnown false asks for cost per item; undefined (older api) does not", () => {
@@ -97,6 +98,16 @@ describe("proposalNotes", () => {
     expect(n.struck).toBe(false);
     expect(proposalNotes({ struck: true }, "woocommerce").struck).toBe(false);
     expect(proposalNotes({ struck: false, referenceNote: "x" }, "shopify").referenceNote).toBe("x");
+  });
+  it("only a store known to be Shopify gets the hold sentence: an unknown platform (stores list not loaded) shows none", () => {
+    const p = { struck: false, referenceNote: "Not crossed out yet." };
+    expect(proposalNotes(p, "shopify").referenceNote).toBe("Not crossed out yet.");
+    expect(proposalNotes(p, null).referenceNote).toBeNull();
+    expect(proposalNotes(p).referenceNote).toBeNull();
+  });
+  it("a route or decision named like an Object.prototype key falls back to itself", () => {
+    expect(proposalNotes({ route: "constructor" }).route).toBe("constructor");
+    expect(decisionWords(row({ decision: "toString" })).label).toBe("toString");
   });
   it("names a route in plain words, and an unknown one by its key", () => {
     expect(proposalNotes({ route: "broken_run" }).route).toBe("Sizes are running out");
@@ -126,7 +137,7 @@ describe("startOutcome", () => {
     expect(startOutcome(started(3, 2, [], { tooFewToMeasure: true })).message).toContain("too few to measure");
   });
   it("refused and unknown are told apart: a refusal is left out, an unknown may be live", () => {
-    const o = startOutcome(started(5, 5, [{ status: "refused" }, { status: "refused" }, { status: "unknown" }]));
+    const o = startOutcome(started(5, 5, [{ status: "refused" }, { status: "refused" }, { status: "unknown" }]), "shopify");
     expect(o.kind).toBe("started");
     expect(o.message).toContain("2 products were left out because Shopify or a safety check refused");
     expect(o.message).toContain("couldn't confirm 1 product");
@@ -153,6 +164,10 @@ describe("startOutcome", () => {
     expect(startOutcome(no(409, { code: "MOVED", error: "The list moved." }))).toMatchObject({ kind: "moved", message: "The list moved." });
     expect(startOutcome(no(409, { code: "MOVED" })).message).toContain("nothing was changed");
   });
+  it("a 409 with a code this page does not know may mean a test is already running: uncertain", () => {
+    expect(startOutcome(no(409, { code: "ALREADY_RUNNING", error: "A test is running." })).kind).toBe("uncertain");
+    expect(startOutcome(no(409, {})).kind).toBe("uncertain");
+  });
   it("409 NOT_STARTED and SWITCHED_OFF are clear refusals", () => {
     expect(startOutcome(no(409, { code: "NOT_STARTED", error: "Nope." }))).toMatchObject({ kind: "stopped", message: "Nope." });
     expect(startOutcome(no(409, { code: "SWITCHED_OFF", error: "Off." }))).toMatchObject({ kind: "stopped", tone: "info", message: "Off." });
@@ -162,6 +177,12 @@ describe("startOutcome", () => {
   });
   it("400/401/403/404/422 are clear refusals", () => {
     for (const s of [400, 401, 403, 404, 422]) expect(startOutcome(no(s)).kind).toBe("stopped");
+  });
+  it("with the platform unknown the words are neutral, not Shopify's", () => {
+    const o = startOutcome(started(5, 5, [{ status: "refused", message: "Because." }]), null);
+    expect(o.message).toContain("your store or a safety check refused");
+    expect(o.message).not.toContain("Shopify");
+    expect(o.message).toContain("Because.");
   });
   it("WooCommerce reads the store's own words and its own date sentence, once", () => {
     const date = "This price has been on for fewer than 28 days, so a sale price would show a 'was' price that is not genuine yet. We will offer it again after 3 December 2026.";
