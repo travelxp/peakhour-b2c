@@ -442,7 +442,7 @@ export default function PeaksPage() {
         <PageHeader
           icon={<Zap className="mt-0.5 size-6" />}
           title="Peaks"
-          description="The AI credits that power every feature. Resets monthly on your billing date."
+          description="The Peaks that power every feature. Resets monthly on your billing date."
           actions={
             <Button
               variant="outline"

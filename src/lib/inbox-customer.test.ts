@@ -37,7 +37,7 @@ describe("the price on a button", () => {
     expect(priced("Suggest a reply", 10)).toEqual({ text: "Suggest a reply · 10 Peaks", available: true });
     expect(priced("Refresh summary", 0)).toEqual({ text: "Refresh summary · Free", available: true });
   });
-  it("says Peaks on peakhour.ai, never AI credits (the Shopify app's word)", () => {
+  it("says Peaks on peakhour.ai, never AI credits", () => {
     expect(JSON.stringify([creditsLabel(10), priced("x", 10), WINDOW_LIMITED_NOTE, DELETE_CONTACT_BODY])).not.toMatch(/AI credit/i);
   });
 });

@@ -763,7 +763,7 @@ function GenerateTab({
         {running ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> : <Sparkles className="size-3.5" />}
         {running ? "Making it…" : `Make ${kind === "image" ? "an image" : "a video"}`}
       </Button>
-      <p className="text-xs text-muted-foreground">Uses your AI credits. Images usually take a few seconds; videos up to a minute. What you make is saved to Drive.</p>
+      <p className="text-xs text-muted-foreground">Uses your Peaks. Images usually take a few seconds; videos up to a minute. What you make is saved to Drive.</p>
     </div>
   );
 }

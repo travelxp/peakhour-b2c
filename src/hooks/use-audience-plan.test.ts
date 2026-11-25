@@ -7,8 +7,8 @@ import { chargedTaskRefusal } from "./use-audience-plan";
  */
 describe("chargedTaskRefusal", () => {
   it("too few credits: the title says it, and the api's sentence (price, what is left, what to do) is the description", () => {
-    const msg = "This takes 175 AI credits and you have 40 left. Nothing was started and nothing was charged. Add AI credits, or wait for your allowance to reset.";
-    expect(chargedTaskRefusal("CREDITS_EXHAUSTED", msg)).toEqual({ title: "You don't have enough AI credits for this.", description: msg });
+    const msg = "This takes 175 Peaks and you have 40 left. Nothing was started and nothing was charged. Add Peaks, or wait for your allowance to reset.";
+    expect(chargedTaskRefusal("CREDITS_EXHAUSTED", msg)).toEqual({ title: "You don't have enough Peaks for this.", description: msg });
   });
   it("a double press: the title says it is already running, and that it is charged once", () => {
     expect(chargedTaskRefusal("ACT_ALREADY_RUNNING", undefined)).toEqual({ title: "This is already running.", description: "Wait for it to finish. You will be charged once." });

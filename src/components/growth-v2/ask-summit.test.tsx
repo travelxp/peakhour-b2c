@@ -286,7 +286,7 @@ describe("asking", () => {
   });
 
   it("a short balance shows the top-up path, not an alarm", async () => {
-    h.post.mockRejectedValue(new ApiError("CREDITS_EXHAUSTED", "This takes 605 AI credits and you have 100 left.", 429));
+    h.post.mockRejectedValue(new ApiError("CREDITS_EXHAUSTED", "This takes 605 Peaks and you have 100 left.", 429));
     await mount();
     await openDialog();
     await type(QUESTION);

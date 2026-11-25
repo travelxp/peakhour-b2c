@@ -2,7 +2,7 @@ import type { BaseContent } from "@/components/marketing/seo/content-types";
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { pathFor } from "@/lib/seo/resolve";
 
-/** /peaks. Peaks are the AI credits; the copy states how they work, never what a job costs in money. */
+/** /peaks. Peaks pay for the AI work; the copy states how they work, never what a job costs in money. */
 export const PEAKS: BaseContent = {
   crumbs: [
     { label: "Home", href: pathFor("home") },

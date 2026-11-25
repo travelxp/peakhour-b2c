@@ -61,7 +61,7 @@ export function SuiteCard({
    * "shopify" is the /shopify page's card: the button is the App Store
    * install (an external link the caller passes in `cta`, opened in a new
    * tab), the trial note says it is billed through Shopify, and the
-   * allowance is named "AI credits (Peaks)". ★NEVER "No card to start": a
+   * allowance is named "Peaks". ★NEVER "No card to start": a
    * Shopify trial is billed through Shopify, not started on peakhour.ai.
    */
   channel?: "shopify";
@@ -159,7 +159,7 @@ export function SuiteCard({
                   {formatPeaks(peaks)}
                 </span>
                 <span className="text-sm font-bold">
-                  {shopify ? "AI credits (Peaks) a month" : "Peaks a month"}
+                  Peaks a month
                 </span>
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">

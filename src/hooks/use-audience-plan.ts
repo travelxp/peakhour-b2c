@@ -190,14 +190,14 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
 }
 
 /**
- * The two refusals a CHARGED task can answer before it starts (peakhour-api `chargedAct`): too few AI credits for its price
+ * The two refusals a CHARGED task can answer before it starts (peakhour-api `chargedAct`): too few Peaks for its price
  * (429 CREDITS_EXHAUSTED) and the same task already running for this business (409 ACT_ALREADY_RUNNING). Neither ran the model
  * and neither charged anything. The api's message already names the price, what is left and what to do, so it is rendered, not
  * replaced; the title says what happened. Any other code is not ours: undefined.
  */
 export function chargedTaskRefusal(code: string | undefined, message: string | undefined): { title: string; description: string } | undefined {
   if (code === "CREDITS_EXHAUSTED") {
-    return { title: "You don't have enough AI credits for this.", description: message || "Add AI credits, or wait for your allowance to reset. Nothing was started and nothing was charged." };
+    return { title: "You don't have enough Peaks for this.", description: message || "Add Peaks, or wait for your allowance to reset. Nothing was started and nothing was charged." };
   }
   if (code === "ACT_ALREADY_RUNNING") {
     return { title: "This is already running.", description: message || "Wait for it to finish. You will be charged once." };

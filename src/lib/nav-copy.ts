@@ -90,7 +90,7 @@ export const PILLAR_COPY: Record<string, NavCopy> = {
   },
   "/dashboard/peaks": {
     label: "Peaks",
-    description: "Your credit balance, top-ups and what each action costs.",
+    description: "Your Peaks balance, top-ups and what each action costs.",
   },
   "/dashboard/settings": {
     label: "Settings",

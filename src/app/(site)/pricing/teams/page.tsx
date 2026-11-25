@@ -239,7 +239,7 @@ export default async function TeamsPricingPage() {
               className="mt-5 grid gap-3 sm:grid-cols-3"
               links={[
                 { label: "Peakhour pricing", href: pathFor("pricing"), note: "Peakhour Suite for a single business." },
-                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "Volume Peaks and top-ups explained." },
+                { label: "Peaks, what pays for the AI work", href: pathFor("peaks"), note: "Volume Peaks and top-ups explained." },
                 { label: "How Peakhour works", href: pathFor("how.it.works"), note: "What every module does for each client." },
               ]}
             />
