@@ -644,7 +644,7 @@ export function shopifyFaq({
     {
       q: "What are Peaks?",
       a: peaksIncluded
-        ? `Peaks pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes ${peaksIncluded} a month, and you can buy top-ups on peakhour.ai.`
+        ? `Peaks pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes ${peaksIncluded} Peaks a month, and you can buy top-ups on peakhour.ai.`
         : "Peaks pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes a monthly amount, and you can buy top-ups on peakhour.ai.",
     },
     {

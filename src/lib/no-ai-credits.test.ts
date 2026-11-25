@@ -13,7 +13,7 @@ import ts from "typescript";
  * (src/content/seo/competitors): it quotes what that vendor calls its unit.
  */
 const ROOT = resolve(__dirname, "..", "..");
-const BAD = [/\bAI[\s-]+credits?\b/i, /\b(?:your|more|buy|add|top ?up|extra) credits\b/i, /\bcredit balance\b/i, /\b(?:uses|costs|the) credits\b/i, /\bcredits \(Peaks\)/i];
+const BAD = [/\bAI[\s-]+(?:\$\{\}\s*)?credits?\b/i, /\d[\d,]*\s+credits?\b/i, /\bcredits (?:left|renew|run out)\b/i, /\b(?:your|more|buy|add|top ?up|extra) credits\b/i, /\bcredit balance\b/i, /\b(?:uses|costs|the) credits\b/i, /\bcredits \(Peaks\)/i];
 const EXEMPT = [/^src\/content\/seo\/competitors\//];
 
 /**
@@ -60,6 +60,8 @@ function texts(file: string, src: string): string[] {
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, kind);
   const walk = (n: ts.Node) => {
     if (ts.isStringLiteralLike(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) out.push(n.text);
+    // A template that splits the phrase around an expression ("AI ${x} credits") is read joined, the expression as ${}.
+    if (ts.isTemplateExpression(n)) out.push(n.head.text + n.templateSpans.map((sp) => "${}" + sp.literal.text).join(""));
     ts.forEachChild(n, walk);
   };
   walk(sf);
@@ -77,6 +79,11 @@ describe("the unit is Peaks, never AI credits", () => {
     expect(creditWording("ai-credits")).toBe(false);
     expect(creditWording("The AI call uses credits;")).toBe(true);
     expect(creditWording("Each answer uses credits (Peaks)")).toBe(true);
+    expect(creditWording("Includes 5,000 credits a month")).toBe(true);
+    expect(creditWording("Your credits renew monthly")).toBe(true);
+    expect(creditWording("Credits left: 3")).toBe(true);
+    expect(creditWording("AI ${}  credits")).toBe(true);
+    expect(creditWording("Includes 5,000 Peaks a month")).toBe(false);
     expect(creditWording("Uses your Peaks.")).toBe(false);
     expect(creditWording("CREDITS_EXHAUSTED")).toBe(false);
     expect(creditWording("No credit card required")).toBe(false);
@@ -91,7 +98,7 @@ describe("the unit is Peaks, never AI credits", () => {
         if (creditWording(t) && !HELD[rel]?.includes(t)) hits.push(`${rel}: "${t.replace(/\s+/g, " ").slice(0, 80)}"`);
       }
     }
-    expect(hits, 'say "Peaks" (see src/lib/peaks.ts formatPeaks); the owner retired "AI credits" on 2026-11-25').toEqual([]);
+    expect(hits, 'say "Peaks": formatPeaks in src/lib/pricing.ts returns only the digits, so write the word "Peaks" after it; the owner retired "AI credits" on 2026-11-25').toEqual([]);
   }, 60_000);
 
   it("every HELD string is still in its file, so the list cannot rot", () => {
