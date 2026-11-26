@@ -47,7 +47,7 @@ export const PEAKHOUR_SUMMIT: FeatureContent = {
   integrations: [
     { label: "Peakhour Growth", href: pathFor("growth"), note: "The module whose proposals Peakhour Summit reviews." },
     { label: "How Peakhour works", href: pathFor("how.it.works"), note: "Ask, approve and undo, across the whole platform." },
-    { label: "Peaks", href: pathFor("peaks"), note: "The credits a question to Peakhour Summit is priced in." },
+    { label: "Peaks", href: pathFor("peaks"), note: "What a question to Peakhour Summit is priced in." },
   ],
   pricingNote:
     "Asking Peakhour Summit your own question is priced in Peaks, and the price is shown to you first, before you press Ask. See Pricing for how Peaks work.",

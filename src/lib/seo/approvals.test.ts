@@ -36,14 +36,16 @@ describe("approvals.ts, the file the api edits by text", () => {
     expect(APPROVAL_LINE.test(formatApprovalLine({ ...row, reviewer: 'A "B"' }))).toBe(false);
   });
 
-  it("names only registry pages, at the current hash, each a placeholder by owner dated from the capability records", () => {
+  // A placeholder row is the owner's dev-only sign-off: dated from the capability records (2026-11-15), or later when the owner
+  // re-approved a page whose copy changed (2026-11-26: five pages' "AI credits" wording became Peaks).
+  it("names only registry pages, at the current hash, each a placeholder by owner dated on or after the capability records", () => {
     const ids = new Set(PAGES.map((p) => p.pageId));
     for (const r of PAGE_APPROVALS) {
       expect(ids.has(r.pageId), r.pageId).toBe(true);
       expect(r.contentHash, r.pageId).toBe(currentContentHash(r.pageId));
       expect(r.source).toBe("placeholder");
       expect(r.reviewer).toBe("owner");
-      expect(r.approvedAt).toBe("2026-11-15");
+      expect(r.approvedAt >= "2026-11-15" && r.approvedAt <= new Date().toISOString().slice(0, 10), `${r.pageId} ${r.approvedAt}`).toBe(true);
     }
   });
 

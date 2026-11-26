@@ -173,9 +173,9 @@ export const PAGES: readonly PageRecord[] = [
     pageId: "peaks",
     path: "/peaks",
     queryClusterId: "pricing",
-    title: "Peaks: the AI credits behind every Peakhour feature",
+    title: "Peaks: what pays for every Peakhour feature",
     description:
-      "Peaks are the AI credits behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
+      "Peaks pay for the AI work behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
     h1: "Peaks pay for the AI work Peakhour does.",
     relatedIds: ["pricing", "pricing.teams", "how.it.works"],
   }),

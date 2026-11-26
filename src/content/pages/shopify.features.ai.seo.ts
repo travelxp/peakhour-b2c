@@ -73,7 +73,7 @@ export const CONTENT: ShopifyFeatureContent = {
     },
     {
       q: "What does it need?",
-      a: "AI credits (Peaks) and the Suite plan. The pricing page shows what the plan includes.",
+      a: "Peaks and the Suite plan. The pricing page shows what the plan includes.",
     },
   ],
   related: [

@@ -72,8 +72,8 @@ export const CONTENT: ShopifyFeatureContent = {
       a: "Yes. You can limit the chat to signed-in shoppers, pause it, and take over any chat yourself.",
     },
     {
-      q: "Does the chat use AI credits?",
-      a: "Yes. Each AI answer uses credits (Peaks), and stores that have not paid get a smaller daily allowance. The pricing page shows what the plan includes.",
+      q: "Does the chat use Peaks?",
+      a: "Yes. Each AI answer uses Peaks, and stores that have not paid get a smaller daily allowance. The pricing page shows what the plan includes.",
     },
     {
       q: "What is Find my match?",

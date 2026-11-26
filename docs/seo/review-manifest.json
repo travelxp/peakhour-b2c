@@ -21,12 +21,12 @@
       "editorialStatus": "published",
       "devUrl": "https://dev.peakhour.ai/commerce",
       "claims": [],
-      "contentHash": "sha256:16f01632a5455756652b5ecf97a848e00ce9c04f619d94b181f8e40fd985df41",
+      "contentHash": "sha256:9f15b478c10fedd3235aa394be37d445e12f901ba0b0d2263c3c400ea8b67617",
       "approval": {
         "source": "placeholder",
         "reviewer": "owner",
-        "approvedAt": "2026-11-15",
-        "contentHash": "sha256:16f01632a5455756652b5ecf97a848e00ce9c04f619d94b181f8e40fd985df41"
+        "approvedAt": "2026-11-26",
+        "contentHash": "sha256:9f15b478c10fedd3235aa394be37d445e12f901ba0b0d2263c3c400ea8b67617"
       },
       "reviewedBy": null
     },
@@ -558,12 +558,12 @@
           "status": "beta"
         }
       ],
-      "contentHash": "sha256:3696a4809be0b36fdc5a46edb1facb59a136e5968ba0a0c47bd3649c8cd3b98c",
+      "contentHash": "sha256:a40919d3b3db58f93a26dfc61a38333f54a47af14ff2caa92c3fec8ee18d33af",
       "approval": {
         "source": "placeholder",
         "reviewer": "owner",
-        "approvedAt": "2026-11-15",
-        "contentHash": "sha256:3696a4809be0b36fdc5a46edb1facb59a136e5968ba0a0c47bd3649c8cd3b98c"
+        "approvedAt": "2026-11-26",
+        "contentHash": "sha256:a40919d3b3db58f93a26dfc61a38333f54a47af14ff2caa92c3fec8ee18d33af"
       },
       "reviewedBy": null
     },
@@ -1242,16 +1242,16 @@
       "pageId": "peaks",
       "path": "/peaks",
       "family": "core",
-      "title": "Peaks: the AI credits behind every Peakhour feature",
+      "title": "Peaks: what pays for every Peakhour feature",
       "editorialStatus": "published",
       "devUrl": "https://dev.peakhour.ai/peaks",
       "claims": [],
-      "contentHash": "sha256:ec910c6dcc51022721ffe20bc5f1266f74ff80762c8cb6ff499af5497ab28092",
+      "contentHash": "sha256:12b08d741ef1863e80370b092c018b3fb0bfd6957db3be52717d80461fe27017",
       "approval": {
         "source": "placeholder",
         "reviewer": "owner",
-        "approvedAt": "2026-11-15",
-        "contentHash": "sha256:ec910c6dcc51022721ffe20bc5f1266f74ff80762c8cb6ff499af5497ab28092"
+        "approvedAt": "2026-11-26",
+        "contentHash": "sha256:12b08d741ef1863e80370b092c018b3fb0bfd6957db3be52717d80461fe27017"
       },
       "reviewedBy": null
     },
@@ -5962,12 +5962,12 @@
           "status": "live"
         }
       ],
-      "contentHash": "sha256:309e125b033b8f87df821abcfe516403f5193acd2802880bd4c1e59691b07e00",
+      "contentHash": "sha256:d0564aecf85564571d1f0edf988e3ca5000c57cdcce3e122edb216e44520b4ca",
       "approval": {
         "source": "placeholder",
         "reviewer": "owner",
-        "approvedAt": "2026-11-15",
-        "contentHash": "sha256:309e125b033b8f87df821abcfe516403f5193acd2802880bd4c1e59691b07e00"
+        "approvedAt": "2026-11-26",
+        "contentHash": "sha256:d0564aecf85564571d1f0edf988e3ca5000c57cdcce3e122edb216e44520b4ca"
       },
       "reviewedBy": null
     },
@@ -5990,12 +5990,12 @@
           "status": "live"
         }
       ],
-      "contentHash": "sha256:50e4ce3c2a0f6a6aa2a3331fbcbd863e2b4050551c8afa2d36f90e715dcb4846",
+      "contentHash": "sha256:cc442fca12e63727b0291049e2a044f07e3bcb7834ab086260feeaba9e92ac20",
       "approval": {
         "source": "placeholder",
         "reviewer": "owner",
-        "approvedAt": "2026-11-15",
-        "contentHash": "sha256:50e4ce3c2a0f6a6aa2a3331fbcbd863e2b4050551c8afa2d36f90e715dcb4846"
+        "approvedAt": "2026-11-26",
+        "contentHash": "sha256:cc442fca12e63727b0291049e2a044f07e3bcb7834ab086260feeaba9e92ac20"
       },
       "reviewedBy": null
     },

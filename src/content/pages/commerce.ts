@@ -71,7 +71,7 @@ export const COMMERCE: HubContent = {
     },
     {
       q: "What does it cost to run?",
-      a: "Each AI answer uses Peaks, the AI credits in Peakhour Suite. See the pricing page for the monthly allowance.",
+      a: "Each AI answer uses Peaks from your Peakhour Suite balance. See the pricing page for the monthly allowance.",
     },
   ],
   related: [

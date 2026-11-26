@@ -19,27 +19,10 @@ const EXEMPT = [/^src\/content\/seo\/competitors\//];
 /**
  * Held for the owner: published pages whose copy is under a CMS approval (src/lib/seo/approvals.ts). Changing a word
  * moves the page's contentHash and unpublishes it until a new approval row lands, and that sign-off is the owner's, not
- * a code change's. Each still says "AI credits" until the owner re-approves the page with the new word; then delete the
- * entry (the last test fails while an entry no longer matches).
+ * a code change's. Empty since 2026-11-26, when the owner re-approved the last held pages. Add an entry only for a page
+ * that must keep a held string until its re-approval; the last test fails while an entry no longer matches.
  */
-export const HELD: Record<string, string[]> = {
-  "src/content/pages/commerce.ts": ["Each AI answer uses Peaks, the AI credits in Peakhour Suite. See the pricing page for the monthly allowance."],
-  "src/content/pages/shopify.features.ai.seo.ts": ["AI credits (Peaks) and the Suite plan. The pricing page shows what the plan includes."],
-  "src/content/pages/feature-peakhour-summit.ts": ["The credits a question to Peakhour Summit is priced in."],
-  "src/content/pages/shopify.features.ai.shopping.assistant.ts": [
-    "Does the chat use AI credits?",
-    "Yes. Each AI answer uses credits (Peaks), and stores that have not paid get a smaller daily allowance. The pricing page shows what the plan includes.",
-  ],
-  "src/lib/seo/pages.ts": [
-    "Peaks: the AI credits behind every Peakhour feature",
-    "Peaks are the AI credits behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
-  ],
-  "src/lib/seo/capabilities.ts": [
-    "The AI call uses credits; unpaid stores get a smaller daily allowance.",
-    "Needs AI credits and the Suite plan.",
-    "A draft costs credits.",
-  ],
-};
+export const HELD: Record<string, string[]> = {};
 
 export function creditWording(text: string): boolean {
   if (/^[a-z0-9-]+$/.test(text)) return false; // a slug or key (an entry id), not copy
