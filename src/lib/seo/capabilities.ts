@@ -46,7 +46,7 @@ export const CAPABILITIES: readonly Capability[] = [
         limitations: [
           "Answers use your own catalogue and policies; it does not place orders itself on the storefront.",
           "You switch the chat on in the theme editor. A merchant can limit it to signed-in shoppers, pause it, and take over any chat.",
-          "The AI call uses credits; unpaid stores get a smaller daily allowance.",
+          "The AI call uses Peaks; unpaid stores get a smaller daily allowance.",
         ],
       },
       {
@@ -444,7 +444,7 @@ export const CAPABILITIES: readonly Capability[] = [
         limitations: [
           "It does not write structured data (schema) or redirects on Shopify.",
           "It leaves alone titles and descriptions that are already good.",
-          "Needs AI credits and the Suite plan.",
+          "Needs Peaks and the Suite plan.",
         ],
       },
     ],
@@ -772,7 +772,7 @@ export const CAPABILITIES: readonly Capability[] = [
         limitations: [
           "There is no automatic reply: a person reads the AI draft and presses Send.",
           "New reviews arrive on the hourly sync.",
-          "A draft costs credits.",
+          "A draft costs Peaks.",
         ],
       },
     ],

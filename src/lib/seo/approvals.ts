@@ -19,10 +19,10 @@ export type { PageApproval } from "./approvals-format";
 
 export const PAGE_APPROVALS: readonly PageApproval[] = [
   // approvals:begin
-  { pageId: "commerce", contentHash: "sha256:16f01632a5455756652b5ecf97a848e00ce9c04f619d94b181f8e40fd985df41", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
+  { pageId: "commerce", contentHash: "sha256:9f15b478c10fedd3235aa394be37d445e12f901ba0b0d2263c3c400ea8b67617", reviewer: "owner", approvedAt: "2026-11-26", source: "placeholder" },
   { pageId: "contact", contentHash: "sha256:7d80b860a091f48754609a7e845956705b55e06506430dd36dc8dfc1a99cb7e4", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "content", contentHash: "sha256:3e4b472c09d69e216c8eb27a2345fb3f77bbdc1a6937e5eca06f7693bce11afd", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
-  { pageId: "feature.peakhour.summit", contentHash: "sha256:3696a4809be0b36fdc5a46edb1facb59a136e5968ba0a0c47bd3649c8cd3b98c", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
+  { pageId: "feature.peakhour.summit", contentHash: "sha256:a40919d3b3db58f93a26dfc61a38333f54a47af14ff2caa92c3fec8ee18d33af", reviewer: "owner", approvedAt: "2026-11-26", source: "placeholder" },
   { pageId: "features.brand.voice", contentHash: "sha256:01f0bb84506f257795c4143b84e3258e6ccdcf2960527faab8486c731ebdcd64", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "features.google.business.profile.management", contentHash: "sha256:06c9b20a4b6bc950f667a9bc84e8897f90b6c40e1804929e0f9e61f2adc3fcf8", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "features.index", contentHash: "sha256:726d086bf2e9c6408ba699c60d88da09234902b5c05e99a5915d3164b158ff67", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
@@ -47,7 +47,7 @@ export const PAGE_APPROVALS: readonly PageApproval[] = [
   { pageId: "legal.data.deletion", contentHash: "sha256:6ab9b62e35f88a012230dc3c8f407bb6c674c249c589c9570c2ecf6f3d768a79", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "legal.privacy", contentHash: "sha256:013fac6ef2d1a2ccf1630c679fcbd1585ff5b14c9cb1ce51c953b63a4c27f775", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "legal.terms", contentHash: "sha256:2e63e835d63150fdd550774852bd84e382dd6fef5d4c4f83ae23420a8d495a3a", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
-  { pageId: "peaks", contentHash: "sha256:ec910c6dcc51022721ffe20bc5f1266f74ff80762c8cb6ff499af5497ab28092", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
+  { pageId: "peaks", contentHash: "sha256:12b08d741ef1863e80370b092c018b3fb0bfd6957db3be52717d80461fe27017", reviewer: "owner", approvedAt: "2026-11-26", source: "placeholder" },
   { pageId: "presence", contentHash: "sha256:519c0ac229edaad39a1da0f317befa0ca2c163ebd2b7076fe8596b522a6b80c2", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "pricing", contentHash: "sha256:adb1094335585d05d2603780ac2837bcd682fc15fda05d3ae271a874d9d4f842", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "pricing.teams", contentHash: "sha256:4dad2e536b8b521b82f2d90003e0253d9c5c5a8862fee9fafcf90352390411d1", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
@@ -56,8 +56,8 @@ export const PAGE_APPROVALS: readonly PageApproval[] = [
   { pageId: "shopify.features.ai.blog.generator", contentHash: "sha256:665f592722f2d22bdf44556b0dd2bc8494c5b0258ad75112b6d283debfe2218f", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "shopify.features.ai.growth.campaigns", contentHash: "sha256:a6462af9645740d0e6b094141216d1ed99b567ed214aef07a1d9a9086828d6d6", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "shopify.features.ai.product.descriptions", contentHash: "sha256:fc1018d39fbc422b3f246a8b9acc6aafc6b21affba49df3a8f005c83a090712a", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
-  { pageId: "shopify.features.ai.seo", contentHash: "sha256:309e125b033b8f87df821abcfe516403f5193acd2802880bd4c1e59691b07e00", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
-  { pageId: "shopify.features.ai.shopping.assistant", contentHash: "sha256:50e4ce3c2a0f6a6aa2a3331fbcbd863e2b4050551c8afa2d36f90e715dcb4846", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
+  { pageId: "shopify.features.ai.seo", contentHash: "sha256:d0564aecf85564571d1f0edf988e3ca5000c57cdcce3e122edb216e44520b4ca", reviewer: "owner", approvedAt: "2026-11-26", source: "placeholder" },
+  { pageId: "shopify.features.ai.shopping.assistant", contentHash: "sha256:cc442fca12e63727b0291049e2a044f07e3bcb7834ab086260feeaba9e92ac20", reviewer: "owner", approvedAt: "2026-11-26", source: "placeholder" },
   { pageId: "shopify.features.automatic.markdowns", contentHash: "sha256:d02b3ccedb0d79821182612c0cd9f3bca2a14bcfead95affc85da35cd1682056", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "shopify.features.bundles", contentHash: "sha256:f04a176f01344ea23ce0bffa390b91fc861e9360b90d9648a1924094a10ae5f5", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
   { pageId: "shopify.features.cart.upsells", contentHash: "sha256:fb8cdb4ab3e7a4f51995da12a5f1103b922617e24add15b4e44efa25c8ade9b9", reviewer: "owner", approvedAt: "2026-11-15", source: "placeholder" },
