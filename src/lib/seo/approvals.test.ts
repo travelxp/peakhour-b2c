@@ -45,7 +45,7 @@ describe("approvals.ts, the file the api edits by text", () => {
       expect(r.contentHash, r.pageId).toBe(currentContentHash(r.pageId));
       expect(r.source).toBe("placeholder");
       expect(r.reviewer).toBe("owner");
-      expect(r.approvedAt >= "2026-11-15", `${r.pageId} ${r.approvedAt}`).toBe(true);
+      expect(r.approvedAt >= "2026-11-15" && r.approvedAt <= new Date().toISOString().slice(0, 10), `${r.pageId} ${r.approvedAt}`).toBe(true);
     }
   });
 

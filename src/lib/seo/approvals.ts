@@ -14,7 +14,8 @@ export type { PageApproval } from "./approvals-format";
  *   A later row for a pageId replaces the earlier one: the api removes the old line.
  * ★ source "placeholder" rows record the pages that were already published when approvals began (owner sign-off by
  *   capability record, 2026-11-15). They are honest placeholders, not a review of today's copy; the CMS lists them under
- *   its "placeholder" tab until each gets a real "cms" row.
+ *   its "placeholder" tab until each gets a real "cms" row. A placeholder row dated later is the owner re-approving a page
+ *   whose copy changed, still dev only (2026-11-26: five pages' "AI credits" wording became Peaks, owner in chat).
  */
 
 export const PAGE_APPROVALS: readonly PageApproval[] = [

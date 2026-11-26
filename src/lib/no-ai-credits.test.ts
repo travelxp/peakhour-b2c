@@ -19,8 +19,8 @@ const EXEMPT = [/^src\/content\/seo\/competitors\//];
 /**
  * Held for the owner: published pages whose copy is under a CMS approval (src/lib/seo/approvals.ts). Changing a word
  * moves the page's contentHash and unpublishes it until a new approval row lands, and that sign-off is the owner's, not
- * a code change's. Each still says "AI credits" until the owner re-approves the page with the new word; then delete the
- * entry (the last test fails while an entry no longer matches).
+ * a code change's. Empty since 2026-11-26, when the owner re-approved the last held pages. Add an entry only for a page
+ * that must keep a held string until its re-approval; the last test fails while an entry no longer matches.
  */
 export const HELD: Record<string, string[]> = {};
 
