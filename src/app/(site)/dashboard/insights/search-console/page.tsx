@@ -359,7 +359,7 @@ export default function SearchConsoleInsightsPage() {
               title="Finish setup"
               body={
                 sites.length === 0
-                  ? "No verified Search Console properties were found for this account. Verify a domain in Search Console, then reconnect."
+                  ? "This Google account has no verified Search Console site yet. Verify your site in Search Console; it appears here within the hour, with no need to reconnect."
                   : "Pick which verified property to track from Connected accounts to start seeing insights."
               }
               cta={{ href: "/dashboard/integrations", label: "Go to Connected accounts" }}
@@ -619,7 +619,8 @@ export default function SearchConsoleInsightsPage() {
               <strong className="mb-1 block text-sm">Verified properties</strong>
               {sites.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No verified Search Console properties found for this account.{" "}
+                  No verified Search Console site for this account yet. Once you verify one, it
+                  appears here within the hour.{" "}
                   <a
                     href="https://search.google.com/search-console"
                     target="_blank"
