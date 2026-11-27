@@ -411,6 +411,22 @@ describe("uploadToDrive: one file on its own queue, for a screen that shows its 
     const err = await uploadToDrive(file("pic.png", 10), { deps: w.deps }).catch((e) => e);
     expect(uploadErrorMessage(err)).toBe("Your Drive is full. Add space to upload more.");
   });
+  it("a part that never goes through drops its api session, so failures do not pile up toward the open-upload limit", async () => {
+    const w = world();
+    w.deps.putPart = vi.fn(async () => {
+      throw new PartError(0);
+    });
+    const err = await uploadToDrive(file("pic.png", 10), { deps: { ...w.deps, sleep: async () => {} } }).catch((e) => e);
+    expect(uploadErrorMessage(err)).toMatch(/connection dropped/i);
+    expect(w.calls.complete).toBe(0);
+    expect(w.calls.abort).toEqual(["up1"]);
+  });
+  it("a refusal before any session exists aborts nothing", async () => {
+    const w = world();
+    (w.deps.initiate as any).mockRejectedValueOnce(new ApiError("STORAGE_QUOTA_EXCEEDED", "Your Drive is full.", 402));
+    await uploadToDrive(file("pic.png", 10), { deps: w.deps }).catch(() => {});
+    expect(w.calls.abort).toEqual([]);
+  });
   it("aborting the signal cancels it, throws UploadAborted and completes nothing", async () => {
     const w = world();
     const ctl = new AbortController();
