@@ -9,6 +9,7 @@ import {
   impactLine,
   secondActionFor,
   knowledgeGapsRow,
+  typeLabel,
   showsKnowledgeGaps,
   canDismiss,
   topPriorityItems,
@@ -37,6 +38,7 @@ const item = (over: Partial<Insight> = {}): Insight => ({
   shopperDays: 6,
   trend: "up",
   why: "Shoppers ask when an order arrives and the assistant has no answer.",
+  dismissible: true,
   nextStep: { label: "Add shipping details", kind: "knowledge" },
   status: "open",
   evidence: { available: 9, expired: 5 },
@@ -49,6 +51,7 @@ const response = (items: Insight[], over: Partial<InsightsResponse> = {}): Insig
   since: "2026-10-07T00:00:00.000Z",
   needsAction: items.filter((i) => i.status === "open").length,
   counts: { product_demand: 0, missing_product_info: 0, purchase_concern: 0, support_issue: 0, top_question: 0 },
+  knowledgeGaps: { count: 0, dismissible: false },
   quietCount: 0,
   items,
   ...over,
@@ -255,13 +258,23 @@ describe("the knowledge-gap row (AX-A6)", () => {
     expect(knowledgeGapsRow({ knowledgeGaps: { count: 4, dismissible: false } })).toEqual({ label: "4 questions to answer", href: "/dashboard/commerce/knowledge" });
     expect(knowledgeGapsRow({ knowledgeGaps: { count: 1, dismissible: false } })?.label).toBe("1 question to answer");
     expect(knowledgeGapsRow({ knowledgeGaps: { count: 0, dismissible: false } })).toBeNull();
-    expect(knowledgeGapsRow({})).toBeNull();
+    expect(knowledgeGapsRow({} as never)).toBeNull();
   });
-  it("shows on Needs action and Missing info only", () => {
-    expect(INSIGHT_FILTERS.filter((f) => showsKnowledgeGaps(f.value)).map((f) => f.value)).toEqual(["needs_action", "missing_info"]);
+  it("shows on Needs action only, so no chip counts a row it does not show (needsAction counts the row once; Missing info is its items)", () => {
+    expect(INSIGHT_FILTERS.filter((f) => showsKnowledgeGaps(f.value)).map((f) => f.value)).toEqual(["needs_action"]);
+    const items = [item({ type: "missing_product_info" })];
+    expect(chipCount({ items, needsAction: 2 }, "missing_info")).toBe(itemsForFilter(items, "missing_info").length);
+  });
+  it("a count that is not a whole number is no row", () => {
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: 2.5, dismissible: false } })).toBeNull();
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: Number.NaN, dismissible: false } })).toBeNull();
+  });
+  it("an unknown type has a plain badge, never undefined", () => {
+    expect(typeLabel("product_demand")).toBe("Product demand");
+    expect(typeLabel("brand_new_type")).toBe("Insight");
   });
   it("Dismiss is drawn unless the api says the row cannot be dismissed", () => {
-    expect(canDismiss({})).toBe(true);
+    expect(canDismiss({} as never)).toBe(true);
     expect(canDismiss({ dismissible: true })).toBe(true);
     expect(canDismiss({ dismissible: false })).toBe(false);
   });

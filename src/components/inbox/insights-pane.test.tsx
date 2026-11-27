@@ -38,6 +38,7 @@ const item = (over: Partial<Insight> = {}): Insight => ({
   trend: "up",
   why: "Shoppers ask when an order arrives.",
   nextStep: { label: "Add shipping details", kind: "knowledge" },
+  dismissible: true,
   status: "open",
   evidence: { available: 9, expired: 0 },
   surfaces: ["storefront", "whatsapp"],
@@ -49,6 +50,7 @@ const data = (items: Insight[], over: Partial<InsightsResponse> = {}): InsightsR
   since: "2026-10-07T00:00:00.000Z",
   needsAction: items.filter((i) => i.status === "open").length,
   counts: { product_demand: 0, missing_product_info: 0, purchase_concern: 0, support_issue: 0, top_question: 0 },
+  knowledgeGaps: { count: 0, dismissible: false },
   quietCount: 0,
   items,
   ...over,
@@ -122,11 +124,15 @@ describe("the list", () => {
     expect(html({ kind: "ready", data: data([item()], { knowledgeGaps: { count: 1, dismissible: false } }) })).toContain("1 question to answer");
     expect(html({ kind: "ready", data: data([item()], { knowledgeGaps: { count: 0, dismissible: false } }) })).not.toContain("to answer");
   });
-  it("the row shows on Needs action and Missing info, not on Product demand; it is the only content when nothing else is open", () => {
+  it("the row shows on Needs action ONLY (the one chip whose number counts it); Missing info shows its items and its own number", () => {
     const d = data([], { knowledgeGaps: { count: 2, dismissible: false } });
     expect(html({ kind: "ready", data: d }, "needs_action")).toContain("2 questions to answer");
     expect(html({ kind: "ready", data: d }, "needs_action")).not.toContain("chip-empty");
-    expect(html({ kind: "ready", data: d }, "missing_info")).toContain("2 questions to answer");
+    expect(html({ kind: "ready", data: d }, "missing_info")).not.toContain("2 questions to answer");
+    const withItem = data([item({ type: "missing_product_info" })], { needsAction: 2, knowledgeGaps: { count: 1, dismissible: false } });
+    const chips = html({ kind: "ready", data: withItem }, "missing_info");
+    expect(chips).toMatch(/data-chip-count="needs_action">s*2</);
+    expect(chips).toMatch(/data-chip-count="missing_info">s*1</);
     expect(html({ kind: "ready", data: d }, "product_demand")).not.toContain("2 questions to answer");
   });
   it("no Dismiss on an item the api says cannot be dismissed", () => {
@@ -204,6 +210,16 @@ describe("SA-16: a card says what happened, why, the impact and the next step", 
     const out = html({ kind: "ready", data: data([rich({ secondStep: { label: "Read the conversations", kind: "conversations" } })]) });
     expect(out).not.toContain("Or: Read the conversations");
     expect(out.match(/See conversations/g)).toHaveLength(1);
+  });
+  it("a conversations second step with no conversation to open draws no button, only the reason", () => {
+    const out = html({ kind: "ready", data: data([rich({ secondStep: { label: "Read the conversations", kind: "conversations" }, conversations: { count: 0, linkable: false, reason: "These conversations are no longer kept." } })]) });
+    expect(out).not.toContain("See conversations");
+    expect(out).not.toContain("Read the conversations");
+    expect(out).toContain("These conversations are no longer kept.");
+  });
+  it("an item of a type this page does not know still draws, with a plain badge", () => {
+    const out = html({ kind: "ready", data: data([item({ type: "brand_new_type" as never })]) }, "needs_action");
+    expect(out).not.toContain("undefined");
   });
   it("a cause kind this page does not know is named plainly, never printed as undefined", () => {
     const out = html({ kind: "ready", data: data([rich({ cause: { kind: "policy_gap" as never, reason: "Something new." } })]) });

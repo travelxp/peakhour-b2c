@@ -28,7 +28,6 @@ export interface Insight {
   shopperDays: number;
   trend: InsightTrend;
   why: string;
-  /** SA-16. Optional here so a page still draws against an api that has not shipped them. */
   summary?: string;
   nextStep: InsightNextStep;
   secondStep?: InsightNextStep;
@@ -36,8 +35,8 @@ export interface Insight {
   impact?: { basis: "conversations" | "asks"; customers?: number; asks: number; line: string };
   conversations?: { count: number; linkable: boolean; reason?: string };
   priority?: { blocked: boolean; top: boolean };
-  /** False when Dismiss would fail for this row: no Dismiss is drawn. Absent (an older api) reads as dismissible. */
-  dismissible?: boolean;
+  /** False when Dismiss would fail for this row: no Dismiss is drawn. */
+  dismissible: boolean;
   status: "open" | "closed" | "dismissed";
   closedNote?: string;
   evidence: { available: number; expired: number };
@@ -51,7 +50,7 @@ export interface InsightsResponse {
   needsAction: number;
   counts: Record<InsightType, number>;
   /** Questions shoppers asked that the assistant could not answer: Knowledge's own count, drawn as ONE row that opens Knowledge. Never dismissed here. */
-  knowledgeGaps?: { count: number; dismissible: false };
+  knowledgeGaps: { count: number; dismissible: false };
   quietCount: number;
   items: Insight[];
   topPriorities?: string[];
@@ -71,6 +70,9 @@ export const TYPE_LABEL: Record<InsightType, string> = {
   support_issue: "Support issue",
   top_question: "Top question",
 };
+
+/** The badge for an item's type; a type this page does not know (the api may add one) is named plainly, never undefined. */
+export const typeLabel = (type: string): string => (TYPE_LABEL as Record<string, string | undefined>)[type] ?? "Insight";
 
 // -- the filter chips (`?type=`) ---------------------------------------------------------------------------------------
 
@@ -223,8 +225,8 @@ export type InsightAction =
 export const KNOWLEDGE_HREF = "/dashboard/commerce/knowledge";
 
 /**
- * What the primary button does, from `nextStep.kind`. A KIND THAT CANNOT BE HONOURED IS NO BUTTON, never a dead one: an `answer`
- * with no request ids, or a product kind whose path is outside the allow-list or whose store is not known, shows the step as text.
+ * What the primary button does, from `nextStep.kind`. A KIND THAT CANNOT BE HONOURED IS NO BUTTON, never a dead one: a product kind
+ * whose path is outside the allow-list or whose store is not known shows the step as text.
  */
 export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string | null | undefined): InsightAction {
   const s = item.nextStep;
@@ -246,7 +248,7 @@ export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string 
   }
 }
 
-/** The second option (read the conversations), with the same rules as the first. */
+/** The second option, with the same rules as the first. The api's only second step is "Read the conversations": the pane draws it as its one See conversations button (same list), not as words. */
 export function secondActionFor(item: Pick<Insight, "key" | "secondStep">, shop: string | null | undefined): InsightAction {
   return item.secondStep ? actionFor({ key: item.key, nextStep: item.secondStep }, shop) : { kind: "none" };
 }
@@ -283,14 +285,17 @@ export function conversationsLinkable(item: Pick<Insight, "conversations">): { l
  */
 export function knowledgeGapsRow(data: Pick<InsightsResponse, "knowledgeGaps">): { label: string; href: string } | null {
   const n = data.knowledgeGaps?.count;
-  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return null;
+  if (!Number.isInteger(n) || (n as number) <= 0) return null;
   return { label: n === 1 ? "1 question to answer" : `${n} questions to answer`, href: KNOWLEDGE_HREF };
 }
 
-/** Whether a chip shows the knowledge-gap row: the default view, and Missing info (where the retired store-information items used to sit). */
-export const showsKnowledgeGaps = (f: InsightFilter): boolean => f === "needs_action" || f === "missing_info";
+/**
+ * Whether a chip shows the knowledge-gap row: ONLY the default view, "Needs action". The api's `needsAction` (that chip's number) counts the row once, and no other
+ * chip's number does, so a chip never counts a row it does not show and Missing info's number is its items. The Shopify page draws it on its All view alone, the same rule.
+ */
+export const showsKnowledgeGaps = (f: InsightFilter): boolean => f === "needs_action";
 
-/** Whether Dismiss is drawn: the api says; an older api that says nothing is dismissible. */
+/** Whether Dismiss is drawn: the api says (false for a row whose Dismiss would fail). */
 export const canDismiss = (item: Pick<Insight, "dismissible">): boolean => item.dismissible !== false;
 
 /** The (at most three) open items the api ranked first, in its order. */

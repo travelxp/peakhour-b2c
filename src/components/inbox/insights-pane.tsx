@@ -16,7 +16,7 @@ import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
   INSIGHT_FILTERS,
-  TYPE_LABEL,
+  typeLabel,
   CAUSE_LABEL,
   actionFor,
   chipCount,
@@ -302,7 +302,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{item.title}</p>
-            <Badge variant="outline">{TYPE_LABEL[item.type]}</Badge>
+            <Badge variant="outline">{typeLabel(item.type)}</Badge>
             {item.priority?.blocked && <Badge variant="destructive">A shopper left after this</Badge>}
             {trend && <Badge variant="secondary">{trend}</Badge>}
           </div>
@@ -331,7 +331,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
             {action.kind === "link" && action.external ? <AdminLink href={action.href}>{action.label}</AdminLink> : item.nextStep.label}
             {item.nextStep.where ? <span className="text-muted-foreground"> {item.nextStep.where}</span> : null}
           </p>
-          {/* "Read the conversations" is the See conversations button below: drawn once, as a button, never as words */}
+          {/* the api's "Read the conversations" second step is the See conversations button below (the same list): drawn once, as a button, never as words */}
           {second.kind === "link" && (
             <p data-insight-part="second-step" className="text-sm text-muted-foreground">
               Or: {second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : <Link className="underline" href={second.href} {...intent(second.href)}>{second.label}</Link>}
