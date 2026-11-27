@@ -47,6 +47,10 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
+    // Drive uploads: the browser PUTs each 8 MB part straight to a presigned R2 URL (lib/drive/upload-engine.ts). Without this host the
+    // page blocks the request before it leaves, the XHR reports status 0, and the uploader can only say "The connection dropped".
+    // A bucket's address is <bucket>.<account>.r2.cloudflarestorage.com, so the wildcard covers every bucket and region.
+    "https://*.r2.cloudflarestorage.com",
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
