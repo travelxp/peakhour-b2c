@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ReactionsDialog,
   CommentsDialog,
@@ -62,6 +62,14 @@ const AUTHOR_FILTERS: { value: AuthorFilter; label: string }[] = [
 export function LibraryPanel() {
   const [authorFilter, setAuthorFilter] = useState<AuthorFilter>("all");
   const queryClient = useQueryClient();
+  // The two delayed re-reads below. Held so they can be cancelled: left running
+  // they would refetch for a panel that is gone, or for another business.
+  const rereadTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearRereads = () => {
+    rereadTimers.current.forEach(clearTimeout);
+    rereadTimers.current = [];
+  };
+  useEffect(() => clearRereads, []);
 
   // ★REFRESH, NOT RE-READ. This panel only reads what the sync stored, and the
   // sync runs twice a day — so a new comment could wait twelve hours with no
@@ -74,13 +82,12 @@ export function LibraryPanel() {
       toast.success("Refreshing from LinkedIn", {
         description: "New comments and numbers will show here in about a minute.",
       });
-      const reread = () =>
-        queryClient.invalidateQueries({
-          predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("linkedin"),
-        });
+      // Only this panel's own feed: the other LinkedIn queries on the page
+      // (metrics, dialogs, connection status) have not changed.
+      const reread = () => queryClient.invalidateQueries({ queryKey: ["linkedin-feed"] });
       reread();
-      setTimeout(reread, 20_000);
-      setTimeout(reread, 60_000);
+      clearRereads();
+      rereadTimers.current = [setTimeout(reread, 20_000), setTimeout(reread, 60_000)];
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === "SYNC_TOO_SOON") {
@@ -89,7 +96,13 @@ export function LibraryPanel() {
         });
       } else if (err instanceof ApiError && err.code === "NOT_CONNECTED") {
         toast.error("LinkedIn isn't connected", {
-          description: "Reconnect it from the Connected accounts page.",
+          description: "Reconnect it to refresh your posts.",
+          action: {
+            label: "Reconnect",
+            onClick: () => {
+              window.location.href = reconnectHref("/dashboard/content/linkedin", LINKEDIN_CONTENT_PROVIDER);
+            },
+          },
         });
       } else {
         toast.error("Couldn't refresh LinkedIn", { description: "Try again in a moment." });

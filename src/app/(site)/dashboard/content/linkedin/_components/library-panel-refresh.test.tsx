@@ -87,6 +87,29 @@ describe("LibraryPanel Refresh", () => {
     expect(h.feed.mock.calls.length).toBeGreaterThan(feedCalls);
   });
 
+  it("re-reads the feed again at 20s and 60s, and stops when the panel goes away", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      h.syncNow.mockResolvedValue({ jobId: "j1", status: "pending" });
+      await mount();
+      await click();
+      const afterClick = h.feed.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+      expect(h.feed.mock.calls.length).toBeGreaterThan(afterClick);
+      const after20 = h.feed.mock.calls.length;
+      // Unmounting cancels the 60s re-read.
+      act(() => root.unmount());
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(h.feed.mock.calls.length).toBe(after20);
+      // afterEach unmounts again; give it a live root.
+      root = createRoot(container);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a refresh inside the cooldown is a quiet note, not an error", async () => {
     h.syncNow.mockRejectedValue(new ApiError("SYNC_TOO_SOON", "too soon", 429));
     await mount();
