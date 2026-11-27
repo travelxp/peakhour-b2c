@@ -8,6 +8,10 @@ import {
   conversationsLinkable,
   impactLine,
   secondActionFor,
+  knowledgeGapsRow,
+  typeLabel,
+  showsKnowledgeGaps,
+  canDismiss,
   topPriorityItems,
   conversationsHref,
   countLine,
@@ -28,12 +32,13 @@ import { topicFromParam } from "./desk-list-params";
 
 const item = (over: Partial<Insight> = {}): Insight => ({
   key: "delivery-times",
-  type: "missing_store_info",
+  type: "product_demand",
   title: "Customers can't get delivery times",
   count: 14,
   shopperDays: 6,
   trend: "up",
   why: "Shoppers ask when an order arrives and the assistant has no answer.",
+  dismissible: true,
   nextStep: { label: "Add shipping details", kind: "knowledge" },
   status: "open",
   evidence: { available: 9, expired: 5 },
@@ -45,7 +50,8 @@ const response = (items: Insight[], over: Partial<InsightsResponse> = {}): Insig
   windowDays: 30,
   since: "2026-10-07T00:00:00.000Z",
   needsAction: items.filter((i) => i.status === "open").length,
-  counts: { product_demand: 0, missing_product_info: 0, missing_store_info: 0, purchase_concern: 0, support_issue: 0, top_question: 0 },
+  counts: { product_demand: 0, missing_product_info: 0, purchase_concern: 0, support_issue: 0, top_question: 0 },
+  knowledgeGaps: { count: 0, dismissible: false },
   quietCount: 0,
   items,
   ...over,
@@ -76,18 +82,18 @@ describe("filtering and counts", () => {
   const items = [
     item({ key: "a", type: "product_demand" }),
     item({ key: "b", type: "missing_product_info" }),
-    item({ key: "c", type: "missing_store_info" }),
+    item({ key: "c", type: "product_demand" }),
     item({ key: "d", type: "purchase_concern" }),
     item({ key: "e", type: "support_issue" }),
     item({ key: "f", type: "top_question" }),
     item({ key: "g", type: "product_demand", status: "closed", closedNote: "Now in stock" }),
-    item({ key: "h", type: "missing_store_info", status: "dismissed" }),
+    item({ key: "h", type: "product_demand", status: "dismissed" }),
   ];
   it("Needs action is the actionable types, open only", () => {
     expect(itemsForFilter(items, "needs_action").map((i) => i.key)).toEqual(["a", "b", "c"]);
   });
-  it("Missing info joins product and store info", () => {
-    expect(itemsForFilter(items, "missing_info").map((i) => i.key)).toEqual(["b", "c"]);
+  it("Missing info is product info only: store-information questions are the Knowledge row", () => {
+    expect(itemsForFilter(items, "missing_info").map((i) => i.key)).toEqual(["b"]);
   });
   it("closed and dismissed items are in no chip; closed ones are Recently fixed", () => {
     for (const f of INSIGHT_FILTERS) expect(itemsForFilter(items, f.value).map((i) => i.key)).not.toContain("g");
@@ -95,7 +101,7 @@ describe("filtering and counts", () => {
   });
   it("Needs action shows the api's needsAction; other chips count what they show", () => {
     expect(chipCount({ items, needsAction: 7 }, "needs_action")).toBe(7);
-    expect(chipCount({ items, needsAction: 7 }, "missing_info")).toBe(2);
+    expect(chipCount({ items, needsAction: 7 }, "missing_info")).toBe(1);
     expect(chipCount({ items, needsAction: 7 }, "top_question")).toBe(1);
   });
   it("the tab badge is needsAction, and nothing at zero or while unknown", () => {
@@ -108,11 +114,6 @@ describe("filtering and counts", () => {
 
 describe("actionFor: the primary action by nextStep.kind", () => {
   const shop = "table-story.myshopify.com";
-  it("answer carries the request ids; with none it is no button", () => {
-    expect(actionFor(item({ nextStep: { label: "Answer", kind: "answer", requestIds: ["r1", "r2"] } }), shop)).toEqual({ kind: "answer", label: "Answer", requestIds: ["r1", "r2"] });
-    expect(actionFor(item({ nextStep: { label: "Answer", kind: "answer", requestIds: [] } }), shop)).toEqual({ kind: "none" });
-    expect(actionFor(item({ nextStep: { label: "Answer", kind: "answer" } }), shop)).toEqual({ kind: "none" });
-  });
   it("knowledge goes to the Knowledge base", () => {
     expect(actionFor(item(), shop)).toEqual({ kind: "link", label: "Add shipping details", href: "/dashboard/commerce/knowledge", external: false });
   });
@@ -147,7 +148,7 @@ describe("SA-16: destinations, the second option, impact and priority", () => {
     expect(actionFor(item({ nextStep: { label: "x", kind: "admin", adminPath: "/settings" } }), null)).toEqual({ kind: "none" });
   });
   it("the second option follows the same rules as the first", () => {
-    expect(secondActionFor(item({ secondStep: { label: "Answer it here", kind: "answer", requestIds: ["r1"] } }), shop)).toEqual({ kind: "answer", label: "Answer it here", requestIds: ["r1"] });
+    expect(secondActionFor(item({ secondStep: { label: "Read", kind: "conversations" } }), shop)).toMatchObject({ kind: "conversations" });
     expect(secondActionFor(item({ secondStep: { label: "Add it", kind: "knowledge" } }), shop)).toMatchObject({ kind: "link", href: "/dashboard/commerce/knowledge" });
     expect(secondActionFor(item(), shop)).toEqual({ kind: "none" });
   });
@@ -249,5 +250,41 @@ describe("insightsState: a failed read is never an empty list", () => {
   });
   it("a failed refresh keeps the rows it already has", () => {
     expect(insightsState({ isPending: false, isError: true, error: new Error("x"), data: ok }).kind).toBe("ready");
+  });
+});
+
+describe("the knowledge-gap row (AX-A6)", () => {
+  it("is one row with the api's count, singular for one, none for zero or an older api", () => {
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: 4, dismissible: false } })).toEqual({ label: "4 questions to answer", href: "/dashboard/commerce/knowledge" });
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: 1, dismissible: false } })?.label).toBe("1 question to answer");
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: 0, dismissible: false } })).toBeNull();
+    expect(knowledgeGapsRow({} as never)).toBeNull();
+  });
+  it("shows on Needs action only, so no chip counts a row it does not show (needsAction counts the row once; Missing info is its items)", () => {
+    expect(INSIGHT_FILTERS.filter((f) => showsKnowledgeGaps(f.value)).map((f) => f.value)).toEqual(["needs_action"]);
+    const items = [item({ type: "missing_product_info" })];
+    expect(chipCount({ items, needsAction: 2 }, "missing_info")).toBe(itemsForFilter(items, "missing_info").length);
+  });
+  it("a count that is not a whole number is no row", () => {
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: 2.5, dismissible: false } })).toBeNull();
+    expect(knowledgeGapsRow({ knowledgeGaps: { count: Number.NaN, dismissible: false } })).toBeNull();
+  });
+  it("an unknown type has a plain badge, never undefined", () => {
+    expect(typeLabel("product_demand")).toBe("Product demand");
+    expect(typeLabel("brand_new_type")).toBe("Insight");
+  });
+  it("Dismiss is drawn unless the api says the row cannot be dismissed", () => {
+    expect(canDismiss({} as never)).toBe(true);
+    expect(canDismiss({ dismissible: true })).toBe(true);
+    expect(canDismiss({ dismissible: false })).toBe(false);
+  });
+  it("a store with only questions to answer is not the empty state; with nothing at all it is", () => {
+    const base = { windowDays: 30, since: "x", needsAction: 1, counts: { product_demand: 0, missing_product_info: 0, purchase_concern: 0, support_issue: 0, top_question: 0 }, quietCount: 0, items: [] as Insight[] };
+    const ok = { isPending: false, isError: false, error: null };
+    expect(insightsState({ ...ok, data: { ...base, knowledgeGaps: { count: 2, dismissible: false } } }).kind).toBe("ready");
+    expect(insightsState({ ...ok, data: base }).kind).toBe("empty");
+  });
+  it("the retired store-information type in an old link still lands on Missing info", () => {
+    expect(insightFilterFromParam("missing_store_info")).toBe("missing_info");
   });
 });

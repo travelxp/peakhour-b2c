@@ -10,15 +10,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { AdminLink } from "@/components/commerce/demand-insights";
-import { QuestionCard } from "@/components/commerce/knowledge-base";
 import { SupportResultsPanel } from "@/components/inbox/support-results-panel";
 import { useInsightDismissal, useInsights } from "@/hooks/use-insights";
 import { useNavIntent } from "@/hooks/use-nav-intent";
-import { useKbRequests } from "@/hooks/use-knowledge-base";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
   INSIGHT_FILTERS,
-  TYPE_LABEL,
+  typeLabel,
   CAUSE_LABEL,
   actionFor,
   chipCount,
@@ -31,8 +29,10 @@ import {
   insightFilterFromSearch,
   insightsState,
   itemsForFilter,
-  linesLast,
+  canDismiss,
+  knowledgeGapsRow,
   secondActionFor,
+  showsKnowledgeGaps,
   shopOf,
   surfacesLine,
   topPriorityItems,
@@ -42,7 +42,6 @@ import {
   type InsightsResponse,
   type InsightsState,
 } from "@/lib/insights";
-import type { KbRequest } from "@/lib/knowledge-base";
 
 export const INSIGHTS_HEADING = "What customers are telling you";
 export const INSIGHTS_EMPTY = "Nothing needs your attention yet. Insights appear once several customers raise the same thing.";
@@ -154,7 +153,8 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
   const inChip = itemsForFilter(data.items, filter);
   // TOP PRIORITIES: the api's three (a shopper left on it, then customers, then rising), on the default view, drawn once and not again below
   const top = filter === "needs_action" ? topPriorityItems(data).filter((i) => inChip.some((c) => c.key === i.key)) : [];
-  const shown = linesLast(inChip.filter((i) => !top.some((t) => t.key === i.key)));
+  const shown = inChip.filter((i) => !top.some((t) => t.key === i.key));
+  const gaps = showsKnowledgeGaps(filter) ? knowledgeGapsRow(data) : null;
   const fixed = closedItems(data.items);
   const setAside = dismissedItems(data.items);
   return (
@@ -183,7 +183,7 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
         </section>
       )}
 
-      {shown.length === 0 && top.length === 0 ? (
+      {shown.length === 0 && top.length === 0 && !gaps ? (
         <p data-insights="chip-empty" className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {filter === "needs_action" ? INSIGHTS_EMPTY : "Nothing here right now."}
         </p>
@@ -195,6 +195,8 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
         </ul>
       ) : null}
 
+      {gaps && <KnowledgeGapsRow label={gaps.label} href={gaps.href} />}
+
       {data.assistantMistakes?.line && (
         <p data-insights="assistant-mistakes" className="text-xs text-muted-foreground">
           {data.assistantMistakes.line}
@@ -204,6 +206,21 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
       {fixed.length > 0 && <RecentlyFixed items={fixed} />}
       {setAside.length > 0 && <DismissedItems items={setAside} />}
     </div>
+  );
+}
+
+/** The ONE row for questions the assistant could not answer: the api's count, opening Knowledge, where they are answered and dismissed. No Dismiss here. */
+export function KnowledgeGapsRow({ label, href }: { label: string; href: string }) {
+  const intent = useNavIntent();
+  return (
+    <Card data-insights="knowledge-gaps">
+      <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
+        <p className="font-medium">{label}</p>
+        <Button size="sm" asChild>
+          <Link href={href} {...intent(href)}>Answer on Knowledge</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -285,7 +302,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{item.title}</p>
-            <Badge variant="outline">{TYPE_LABEL[item.type]}</Badge>
+            <Badge variant="outline">{typeLabel(item.type)}</Badge>
             {item.priority?.blocked && <Badge variant="destructive">A shopper left after this</Badge>}
             {trend && <Badge variant="secondary">{trend}</Badge>}
           </div>
@@ -314,19 +331,11 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
             {action.kind === "link" && action.external ? <AdminLink href={action.href}>{action.label}</AdminLink> : item.nextStep.label}
             {item.nextStep.where ? <span className="text-muted-foreground"> {item.nextStep.where}</span> : null}
           </p>
-          {/* "Read the conversations" is the See conversations button below: drawn once, as a button, never as words */}
+          {/* the api's "Read the conversations" second step is the See conversations button below (the same list): drawn once, as a button, never as words */}
           {second.kind === "link" && (
             <p data-insight-part="second-step" className="text-sm text-muted-foreground">
               Or: {second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : <Link className="underline" href={second.href} {...intent(second.href)}>{second.label}</Link>}
             </p>
-          )}
-
-          {action.kind === "answer" && <AnswerInline requestIds={action.requestIds} heading={item.title} />}
-          {second.kind === "answer" && (
-            <div data-insight-part="answer-here" className="space-y-2">
-              <p className="text-sm text-muted-foreground">Or answer it here:</p>
-              <AnswerInline requestIds={second.requestIds} heading={item.title} />
-            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
@@ -346,9 +355,11 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
                 <Link href={convoHref} {...intent(convoHref)}>See conversations</Link>
               </Button>
             )}
-            <Button size="sm" variant="ghost" disabled={dismissal.isPending} onClick={() => dismissal.mutate({ key: item.key })}>
-              Dismiss
-            </Button>
+            {canDismiss(item) && (
+              <Button size="sm" variant="ghost" disabled={dismissal.isPending} onClick={() => dismissal.mutate({ key: item.key })}>
+                Dismiss
+              </Button>
+            )}
           </div>
           {!convo.linkable && convo.reason && (
             <p data-insight-part="no-conversations" className="text-xs text-muted-foreground">
@@ -364,31 +375,5 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
         </CardContent>
       </Card>
     </li>
-  );
-}
-
-/**
- * The questions behind an insight, answered where they are shown. It is the Knowledge base's own card and answer call, so the two
- * cannot answer differently. ★THE STORED QUESTION IS NEVER PRINTED: it is a scrubbed keyword string, and as a heading it read as raw shopper text. Each card is
- * headed with the insight's own title (and "1 of 2" when several questions stand behind it), and the answer is saved against each as before. A request that is no longer open (answered in the Knowledge base meanwhile) simply is not drawn.
- */
-function AnswerInline({ requestIds, heading }: { requestIds: string[]; heading: string }) {
-  const q = useKbRequests();
-  if (q.isPending) return <Skeleton className="h-24 w-full" />;
-  if (q.isError) return <p role="alert" className="text-sm text-destructive">The questions could not be loaded. Please refresh.</p>;
-  const open: KbRequest[] = (q.data?.requests ?? []).filter((r) => requestIds.includes(r.id));
-  if (open.length === 0) return <p className="text-sm text-muted-foreground">These questions have been answered.</p>;
-  return (
-    <ul className="space-y-3">
-      {open.map((r, i) => (
-        <QuestionCard
-          key={r.id}
-          request={{ ...r, question: open.length > 1 ? `${heading} (${i + 1} of ${open.length})` : heading }}
-          answerLabel="Answer once"
-          // the card's own Dismiss is the card's; this one stays only where several questions stand behind a line, and then says which one it sets aside
-          dismissLabel={open.length > 1 ? `Dismiss question ${i + 1}` : null}
-        />
-      ))}
-    </ul>
   );
 }

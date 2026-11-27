@@ -233,7 +233,7 @@ describe("the three new settings", () => {
 
 describe("dismissed insights", () => {
   const item = (key: string, status: Insight["status"]): Insight =>
-    ({ key, type: "missing_store_info", title: key, count: 3, shopperDays: 3, trend: "flat", why: "", nextStep: { label: "", kind: "none" }, status, evidence: { available: 1, expired: 0 }, surfaces: [], lastAskedAt: "" }) as Insight;
+    ({ key, type: "product_demand", title: key, count: 3, shopperDays: 3, trend: "flat", why: "", nextStep: { label: "", kind: "none" }, dismissible: true, status, evidence: { available: 1, expired: 0 }, surfaces: [], lastAskedAt: "" }) as Insight;
   it("are exactly the dismissed ones", () => {
     expect(dismissedItems([item("a", "open"), item("b", "dismissed"), item("c", "closed")]).map((i) => i.key)).toEqual(["b"]);
   });

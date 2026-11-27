@@ -7,9 +7,9 @@
  */
 import { adminUrl } from "@/lib/demand-insights";
 
-export type InsightType = "product_demand" | "missing_product_info" | "missing_store_info" | "purchase_concern" | "support_issue" | "top_question";
+export type InsightType = "product_demand" | "missing_product_info" | "purchase_concern" | "support_issue" | "top_question";
 export type InsightTrend = "new" | "up" | "down" | "flat";
-export type InsightNextKind = "answer" | "knowledge" | "product" | "add_product" | "products" | "admin" | "conversations" | "none";
+export type InsightNextKind = "knowledge" | "product" | "add_product" | "products" | "admin" | "conversations" | "none";
 export type InsightCauseKind = "missing_store_info" | "missing_product_info" | "not_in_catalog" | "integration_limit";
 
 export interface InsightNextStep {
@@ -18,7 +18,6 @@ export interface InsightNextStep {
   adminPath?: string;
   /** kind "admin" with `/settings`: which section to open once there. */
   where?: string;
-  requestIds?: string[];
 }
 
 export interface Insight {
@@ -29,7 +28,6 @@ export interface Insight {
   shopperDays: number;
   trend: InsightTrend;
   why: string;
-  /** SA-16. Optional here so a page still draws against an api that has not shipped them. */
   summary?: string;
   nextStep: InsightNextStep;
   secondStep?: InsightNextStep;
@@ -37,6 +35,8 @@ export interface Insight {
   impact?: { basis: "conversations" | "asks"; customers?: number; asks: number; line: string };
   conversations?: { count: number; linkable: boolean; reason?: string };
   priority?: { blocked: boolean; top: boolean };
+  /** False when Dismiss would fail for this row: no Dismiss is drawn. */
+  dismissible: boolean;
   status: "open" | "closed" | "dismissed";
   closedNote?: string;
   evidence: { available: number; expired: number };
@@ -49,6 +49,8 @@ export interface InsightsResponse {
   since: string;
   needsAction: number;
   counts: Record<InsightType, number>;
+  /** Questions shoppers asked that the assistant could not answer: Knowledge's own count, drawn as ONE row that opens Knowledge. Never dismissed here. */
+  knowledgeGaps: { count: number; dismissible: false };
   quietCount: number;
   items: Insight[];
   topPriorities?: string[];
@@ -56,19 +58,21 @@ export interface InsightsResponse {
   results?: unknown;
 }
 
-export const INSIGHT_TYPES: readonly InsightType[] = ["product_demand", "missing_product_info", "missing_store_info", "purchase_concern", "support_issue", "top_question"];
+export const INSIGHT_TYPES: readonly InsightType[] = ["product_demand", "missing_product_info", "purchase_concern", "support_issue", "top_question"];
 
 /** The types a merchant can act on: a gap to fill. The api's `needsAction` counts open items of these. */
-export const ACTIONABLE_TYPES: readonly InsightType[] = ["product_demand", "missing_product_info", "missing_store_info"];
+export const ACTIONABLE_TYPES: readonly InsightType[] = ["product_demand", "missing_product_info"];
 
 export const TYPE_LABEL: Record<InsightType, string> = {
   product_demand: "Product demand",
   missing_product_info: "Missing product info",
-  missing_store_info: "Missing store info",
   purchase_concern: "Purchase concern",
   support_issue: "Support issue",
   top_question: "Top question",
 };
+
+/** The badge for an item's type; a type this page does not know (the api may add one) is named plainly, never undefined. */
+export const typeLabel = (type: string): string => (TYPE_LABEL as Record<string, string | undefined>)[type] ?? "Insight";
 
 // -- the filter chips (`?type=`) ---------------------------------------------------------------------------------------
 
@@ -100,6 +104,7 @@ export function insightFilterFromParam(value: string | null | undefined): Insigh
     case "missing_info":
     case "missing_product_info":
     case "missing_store_info":
+      // a link from before AX-A6 names the retired type: it lands on Missing info, where the knowledge-gap row sits
       return "missing_info";
     default:
       return DEFAULT_INSIGHT_FILTER;
@@ -117,7 +122,7 @@ function inFilter(item: Insight, f: InsightFilter): boolean {
     case "needs_action":
       return ACTIONABLE_TYPES.includes(item.type);
     case "missing_info":
-      return item.type === "missing_product_info" || item.type === "missing_store_info";
+      return item.type === "missing_product_info";
     default:
       return item.type === f;
   }
@@ -211,8 +216,6 @@ export function surfacesLine(surfaces: readonly string[]): string {
 // -- the primary action ------------------------------------------------------------------------------------------------
 
 export type InsightAction =
-  /** Answer the shoppers' questions inline: the existing knowledge-base answer call, one card per request id. */
-  | { kind: "answer"; label: string; requestIds: string[] }
   /** Open the Knowledge base, or the Shopify admin (allow-listed path, built from the store's own handle). */
   | { kind: "link"; label: string; href: string; external: boolean }
   /** Narrow the Conversations lane to this insight. */
@@ -222,16 +225,12 @@ export type InsightAction =
 export const KNOWLEDGE_HREF = "/dashboard/commerce/knowledge";
 
 /**
- * What the primary button does, from `nextStep.kind`. A KIND THAT CANNOT BE HONOURED IS NO BUTTON, never a dead one: an `answer`
- * with no request ids, or a product kind whose path is outside the allow-list or whose store is not known, shows the step as text.
+ * What the primary button does, from `nextStep.kind`. A KIND THAT CANNOT BE HONOURED IS NO BUTTON, never a dead one: a product kind
+ * whose path is outside the allow-list or whose store is not known shows the step as text.
  */
 export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string | null | undefined): InsightAction {
   const s = item.nextStep;
   switch (s.kind) {
-    case "answer": {
-      const ids = (s.requestIds ?? []).filter((id) => typeof id === "string" && id.length > 0);
-      return ids.length > 0 ? { kind: "answer", label: s.label, requestIds: ids } : { kind: "none" };
-    }
     case "knowledge":
       return { kind: "link", label: s.label, href: KNOWLEDGE_HREF, external: false };
     case "product":
@@ -249,7 +248,7 @@ export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string 
   }
 }
 
-/** The second option (answer it here, or write it in Knowledge, or read the conversations), with the same rules as the first. */
+/** The second option, with the same rules as the first. The api's only second step is "Read the conversations": the pane draws it as its one See conversations button (same list), not as words. */
 export function secondActionFor(item: Pick<Insight, "key" | "secondStep">, shop: string | null | undefined): InsightAction {
   return item.secondStep ? actionFor({ key: item.key, nextStep: item.secondStep }, shop) : { kind: "none" };
 }
@@ -280,16 +279,28 @@ export function conversationsLinkable(item: Pick<Insight, "conversations">): { l
   return c.linkable ? { linkable: true, reason: null } : { linkable: false, reason: c.reason ?? "There is no conversation to open for this." };
 }
 
-/** The two lines that stand for questions without a topic: never a priority, and always drawn under the list. */
-export const QUESTION_LINE_KEYS: ReadonlySet<string> = new Set(["new_questions", "unsorted_questions"]);
-/** Items in the api's order, with the question lines moved to the end. */
-export function linesLast<T extends { key: string }>(items: readonly T[]): T[] {
-  return [...items.filter((i) => !QUESTION_LINE_KEYS.has(i.key)), ...items.filter((i) => QUESTION_LINE_KEYS.has(i.key))];
+/**
+ * The ONE row for questions shoppers asked that the assistant could not answer (api `knowledgeGaps`): "N questions to answer", opening Knowledge. Null for
+ * none or an api that does not send it. It is not an item: it has no Dismiss (a question is dismissed on Knowledge) and carries no question text.
+ */
+export function knowledgeGapsRow(data: Pick<InsightsResponse, "knowledgeGaps">): { label: string; href: string } | null {
+  const n = data.knowledgeGaps?.count;
+  if (!Number.isInteger(n) || (n as number) <= 0) return null;
+  return { label: n === 1 ? "1 question to answer" : `${n} questions to answer`, href: KNOWLEDGE_HREF };
 }
+
+/**
+ * Whether a chip shows the knowledge-gap row: ONLY the default view, "Needs action". The api's `needsAction` (that chip's number) counts the row once, and no other
+ * chip's number does, so a chip never counts a row it does not show and Missing info's number is its items. The Shopify page draws it on its All view alone, the same rule.
+ */
+export const showsKnowledgeGaps = (f: InsightFilter): boolean => f === "needs_action";
+
+/** Whether Dismiss is drawn: the api says (false for a row whose Dismiss would fail). */
+export const canDismiss = (item: Pick<Insight, "dismissible">): boolean => item.dismissible !== false;
 
 /** The (at most three) open items the api ranked first, in its order. */
 export function topPriorityItems(data: Pick<InsightsResponse, "items" | "topPriorities">): Insight[] {
-  const keys = [...new Set(data.topPriorities ?? [])].filter((k) => !QUESTION_LINE_KEYS.has(k)).slice(0, 3);
+  const keys = [...new Set(data.topPriorities ?? [])].slice(0, 3);
   return keys.map((k) => data.items.find((i) => i.key === k && i.status === "open")).filter((i): i is Insight => Boolean(i));
 }
 
@@ -332,7 +343,7 @@ export function insightsState(q: { isPending: boolean; isError: boolean; error: 
   }
   if (!isInsightsResponse(q.data)) return { kind: "error" };
   // "empty" means nothing to show on ANY chip: no item at all, not merely none on the chip in view
-  return q.data.items.length === 0 ? { kind: "empty", data: q.data } : { kind: "ready", data: q.data };
+  return q.data.items.length === 0 && !knowledgeGapsRow(q.data) ? { kind: "empty", data: q.data } : { kind: "ready", data: q.data };
 }
 
 /** The Shopify store the admin links open: the business's primary Shopify store, else its first. Null when it has none (no admin link is drawn). */
