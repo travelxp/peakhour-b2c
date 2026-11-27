@@ -239,7 +239,7 @@ export const CAPABILITIES: readonly Capability[] = [
           "peakhour-api:src/v1/routes/shopify-proxy.ts",
           "peakhour-api:extensions/smart-rail/assets/chat-panel-ext.js",
           "peakhour-api:extensions/smart-rail/blocks/chat-inline.liquid",
-          "peakhour-shopify:src/pages/theme.ts",
+          "peakhour-shopify:src/pages/channels.ts",
         ],
         verifiedAt: VERIFIED_AT,
         limitations: [
@@ -380,7 +380,7 @@ export const CAPABILITIES: readonly Capability[] = [
           "peakhour-api:src/v1/services/commerce/execution.ts",
           "peakhour-api:src/v1/services/commerce/pricer.ts",
           "peakhour-api:src/v1/services/price-write/shopify-writer.ts",
-          "peakhour-shopify:src/lib/markdown-apply.ts",
+          "peakhour-shopify:src/lib/markdown-test.ts",
         ],
         verifiedAt: VERIFIED_AT,
         limitations: [
@@ -502,7 +502,7 @@ export const CAPABILITIES: readonly Capability[] = [
           "peakhour-api:src/v1/helpers/aeo-readiness.ts",
           "peakhour-api:src/v1/routes/shopify-catalog-readiness.ts",
           "peakhour-api:src/v1/routes/shopify-embedded.ts",
-          "peakhour-shopify:src/pages/catalog-readiness.ts",
+          "peakhour-shopify:src/pages/fix-products.ts",
         ],
         catalogKeys: ["content.aeo_audit", "content.internal_links", "content.refresh"],
         verifiedAt: VERIFIED_AT,
