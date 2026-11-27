@@ -407,6 +407,14 @@ export const linkedInContentApi = {
     );
   },
 
+  /** Refresh this business's LinkedIn posts, engagement and comments now.
+   *  Queues the same job the twice-daily cron runs and returns at once; the
+   *  data lands in the feed a few seconds to a minute later. Throws an ApiError
+   *  with `code: "SYNC_TOO_SOON"` (429) when one started in the last five
+   *  minutes, or `"NOT_CONNECTED"` (404) with no active connection. */
+  syncNow: () =>
+    api.post<{ jobId: string; status: string }>("/v1/linkedin/content/sync", {}),
+
   /** The user's own PUBLISHED LinkedIn posts (personal + org), newest
    *  first, read from soc_linkedin_posts (the post-sync cron's output).
    *  Keyset pagination: pass the previous response's `nextCursor`. Server

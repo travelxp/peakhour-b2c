@@ -7,7 +7,7 @@ import {
   RepostsDialog,
 } from "./engagement-dialogs";
 import { MetricStrip } from "./metric-strip";
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Loader2,
   MessageSquarePlus,
+  RefreshCw,
   Send,
   Trash2,
   User,
@@ -60,6 +61,41 @@ const AUTHOR_FILTERS: { value: AuthorFilter; label: string }[] = [
 
 export function LibraryPanel() {
   const [authorFilter, setAuthorFilter] = useState<AuthorFilter>("all");
+  const queryClient = useQueryClient();
+
+  // ★REFRESH, NOT RE-READ. This panel only reads what the sync stored, and the
+  // sync runs twice a day — so a new comment could wait twelve hours with no
+  // way to ask for it. This queues the same sync for this business. The job
+  // takes a few seconds to a minute, so the feed is re-read now and twice more
+  // rather than once and looking unchanged.
+  const refresh = useMutation({
+    mutationFn: () => linkedInContentApi.syncNow(),
+    onSuccess: () => {
+      toast.success("Refreshing from LinkedIn", {
+        description: "New comments and numbers will show here in about a minute.",
+      });
+      const reread = () =>
+        queryClient.invalidateQueries({
+          predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("linkedin"),
+        });
+      reread();
+      setTimeout(reread, 20_000);
+      setTimeout(reread, 60_000);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "SYNC_TOO_SOON") {
+        toast.info("Already refreshed a moment ago", {
+          description: "Give it a few minutes, then try again.",
+        });
+      } else if (err instanceof ApiError && err.code === "NOT_CONNECTED") {
+        toast.error("LinkedIn isn't connected", {
+          description: "Reconnect it from the Connected accounts page.",
+        });
+      } else {
+        toast.error("Couldn't refresh LinkedIn", { description: "Try again in a moment." });
+      }
+    },
+  });
 
   const {
     data,
@@ -104,7 +140,7 @@ export function LibraryPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Author filter */}
+      {/* Author filter + refresh */}
       <div className="flex items-center gap-1">
         {AUTHOR_FILTERS.map((f) => (
           <Button
@@ -118,6 +154,19 @@ export function LibraryPanel() {
             {f.label}
           </Button>
         ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="ml-auto h-7 gap-1.5 px-2.5 text-xs"
+          onClick={() => refresh.mutate()}
+          disabled={refresh.isPending}
+        >
+          <RefreshCw
+            className={`size-3.5 ${refresh.isPending ? "animate-spin motion-reduce:animate-none" : ""}`}
+          />
+          {refresh.isPending ? "Refreshing…" : "Refresh"}
+        </Button>
       </div>
 
       {isLoading ? (
