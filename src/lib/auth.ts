@@ -332,6 +332,13 @@ export async function revokeInvite(email: string): Promise<{ message: string }> 
   );
 }
 
+export async function resendInvite(email: string): Promise<{ message: string; email: string }> {
+  return api.post<{ message: string; email: string }>(
+    `/v1/auth/team/invite/${encodeURIComponent(email)}/resend`,
+    {}
+  );
+}
+
 export async function updateMemberRole(
   userId: string,
   role: string

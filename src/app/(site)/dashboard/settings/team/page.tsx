@@ -7,6 +7,7 @@ import {
   getPendingInvites,
   inviteTeamMember,
   revokeInvite,
+  resendInvite,
   updateMemberRole,
   removeMember,
   type TeamMember,
@@ -47,6 +48,7 @@ import {
   Trash2,
   Mail,
   Clock,
+  RefreshCw,
   X,
   ArrowLeft,
 } from "lucide-react";
@@ -97,6 +99,7 @@ export default function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
   const [inviting, setInviting] = useState(false);
+  const [resending, setResending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -145,6 +148,21 @@ export default function TeamPage() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to revoke");
+    }
+  };
+
+  const handleResend = async (email: string) => {
+    setResending(email);
+    setError(null);
+    try {
+      await resendInvite(email);
+      await loadData();
+      setSuccess(`Invitation sent again to ${email}`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the invitation again");
+    } finally {
+      setResending(null);
     }
   };
 
@@ -417,6 +435,16 @@ export default function TeamPage() {
                   >
                     {ROLE_LABELS[inv.role] || inv.role}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 text-muted-foreground"
+                    disabled={resending === inv.email}
+                    onClick={() => handleResend(inv.email)}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${resending === inv.email ? "animate-spin" : ""}`} />
+                    {resending === inv.email ? "Sending…" : "Resend"}
+                  </Button>
                   <ConfirmDialog
                     trigger={
                       <Button
