@@ -20,7 +20,6 @@ export interface PricerGuardrails {
   marginFloorPct?: number;
   maxSpendMinor?: number;
   maxActionsPerDay?: number;
-  reversibilityWindowHours?: number;
   businessHoursOnly?: boolean;
 }
 
