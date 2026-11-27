@@ -83,7 +83,7 @@ const click = async () => {
   });
 };
 
-describe("LibraryPanel Refresh", () => {
+describe("LinkedInRefreshButton", () => {
   it("is offered even when nothing has synced yet", async () => {
     await mount();
     expect(button()).toBeTruthy();
@@ -133,6 +133,19 @@ describe("LibraryPanel Refresh", () => {
     await click();
     expect(h.syncNow).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(h.interactions.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it("the Feed's button survives the panel finishing loading (a remount would cancel its timers)", async () => {
+    let finish!: (v: unknown) => void;
+    h.interactions.mockReset().mockReturnValue(new Promise((r) => (finish = r)));
+    await mount("feed");
+    const whileLoading = button();
+    expect(whileLoading).toBeTruthy();
+    await act(async () => {
+      finish({ rows: [], nextCursor: null, counts: { needsReply: 0, unseen: 0, mentions: 0, reposts: 0, oldestUnansweredMs: null } });
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain("Nothing waiting on you"));
+    expect(button()).toBe(whileLoading);
   });
 
   it.each(["library", "feed"] as const)(

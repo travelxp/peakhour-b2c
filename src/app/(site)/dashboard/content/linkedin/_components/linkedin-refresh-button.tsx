@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,26 +10,27 @@ import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-con
 import { linkedInContentApi } from "@/lib/api/linkedin-content";
 
 /**
- * Every query the LinkedIn post sync writes behind â€” one list, so a page that is
+ * Every query the LinkedIn post sync writes behind — one list, so a page that is
  * added later cannot be left showing yesterday's numbers.
  *
  *  - `linkedin-feed`          the Library: posts and their engagement totals.
  *  - `linkedin-interactions`  the Feed: individual comments, the reply queue and its counts.
  *
- * â˜…BOTH, ALWAYS. The sync writes `soc_linkedin_posts` AND `soc_linkedin_interactions`
+ * ★BOTH, ALWAYS. The sync writes `soc_linkedin_posts` AND `soc_linkedin_interactions`
  * in one run. A Refresh that re-read only the Library's key left the Feed on its
- * previous rows â€” the post synced on one tab and not the other.
+ * previous rows — the post synced on one tab and not the other.
  */
 export const LINKEDIN_SYNCED_QUERY_KEYS = [["linkedin-feed"], ["linkedin-interactions"]] as const;
 
 /**
- * "Refresh from LinkedIn" â€” one button for every LinkedIn page.
+ * "Refresh from LinkedIn" — one button for every LinkedIn page.
  *
  * Queues the post sync for this business (`POST /v1/linkedin/content/sync`, which
  * holds a five-minute floor because LinkedIn's quota is the application's), then
  * re-reads every synced query now and again at 20s and 60s: the job takes a few
  * seconds to a minute, and one early re-read would look like nothing happened.
- * The delayed re-reads are cancelled on unmount.
+ * The delayed re-reads are cancelled on unmount, so a host must keep this button
+ * at a STABLE place in its tree — one that remounts it cancels the re-reads.
  */
 export function LinkedInRefreshButton({ className = "" }: { className?: string }) {
   const queryClient = useQueryClient();
@@ -88,7 +89,7 @@ export function LinkedInRefreshButton({ className = "" }: { className?: string }
       <RefreshCw
         className={`size-3.5 ${refresh.isPending ? "animate-spin motion-reduce:animate-none" : ""}`}
       />
-      {refresh.isPending ? "Refreshingâ€¦" : "Refresh"}
+      {refresh.isPending ? "Refreshing…" : "Refresh"}
     </Button>
   );
 }

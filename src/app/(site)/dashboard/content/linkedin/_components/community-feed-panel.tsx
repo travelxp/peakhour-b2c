@@ -165,6 +165,10 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
   if (query.isLoading) {
     return (
       <div className="space-y-3">
+        {/* ★Same slot as the loaded branch's header, so the chips — and the Refresh
+            button inside them — keep one place in the tree. A branch that moved them
+            would remount the button and cancel its 20s/60s re-reads. */}
+        <FeedHeader counts={undefined} />
         {chips}
         <FeedSkeleton />
       </div>
@@ -174,6 +178,10 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
   if (query.isError) {
     return (
       <div className="space-y-3">
+        {/* ★Same slot as the loaded branch's header, so the chips — and the Refresh
+            button inside them — keep one place in the tree. A branch that moved them
+            would remount the button and cancel its 20s/60s re-reads. */}
+        <FeedHeader counts={undefined} />
         {chips}
         <EmptyBody
           title="Couldn't load your community activity"
