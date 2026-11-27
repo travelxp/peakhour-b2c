@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ReactionsDialog,
   CommentsDialog,
   RepostsDialog,
 } from "./engagement-dialogs";
 import { MetricStrip } from "./metric-strip";
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Loader2,
   MessageSquarePlus,
+  RefreshCw,
   Send,
   Trash2,
   User,
@@ -60,6 +61,54 @@ const AUTHOR_FILTERS: { value: AuthorFilter; label: string }[] = [
 
 export function LibraryPanel() {
   const [authorFilter, setAuthorFilter] = useState<AuthorFilter>("all");
+  const queryClient = useQueryClient();
+  // The two delayed re-reads below. Held so they can be cancelled: left running
+  // they would refetch for a panel that is gone, or for another business.
+  const rereadTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearRereads = () => {
+    rereadTimers.current.forEach(clearTimeout);
+    rereadTimers.current = [];
+  };
+  useEffect(() => clearRereads, []);
+
+  // ★REFRESH, NOT RE-READ. This panel only reads what the sync stored, and the
+  // sync runs twice a day — so a new comment could wait twelve hours with no
+  // way to ask for it. This queues the same sync for this business. The job
+  // takes a few seconds to a minute, so the feed is re-read now and twice more
+  // rather than once and looking unchanged.
+  const refresh = useMutation({
+    mutationFn: () => linkedInContentApi.syncNow(),
+    onSuccess: () => {
+      toast.success("Refreshing from LinkedIn", {
+        description: "New comments and numbers will show here in about a minute.",
+      });
+      // Only this panel's own feed: the other LinkedIn queries on the page
+      // (metrics, dialogs, connection status) have not changed.
+      const reread = () => queryClient.invalidateQueries({ queryKey: ["linkedin-feed"] });
+      reread();
+      clearRereads();
+      rereadTimers.current = [setTimeout(reread, 20_000), setTimeout(reread, 60_000)];
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "SYNC_TOO_SOON") {
+        toast.info("Already refreshed a moment ago", {
+          description: "Give it a few minutes, then try again.",
+        });
+      } else if (err instanceof ApiError && err.code === "NOT_CONNECTED") {
+        toast.error("LinkedIn isn't connected", {
+          description: "Reconnect it to refresh your posts.",
+          action: {
+            label: "Reconnect",
+            onClick: () => {
+              window.location.href = reconnectHref("/dashboard/content/linkedin", LINKEDIN_CONTENT_PROVIDER);
+            },
+          },
+        });
+      } else {
+        toast.error("Couldn't refresh LinkedIn", { description: "Try again in a moment." });
+      }
+    },
+  });
 
   const {
     data,
@@ -104,7 +153,7 @@ export function LibraryPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Author filter */}
+      {/* Author filter + refresh */}
       <div className="flex items-center gap-1">
         {AUTHOR_FILTERS.map((f) => (
           <Button
@@ -118,6 +167,19 @@ export function LibraryPanel() {
             {f.label}
           </Button>
         ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="ml-auto h-7 gap-1.5 px-2.5 text-xs"
+          onClick={() => refresh.mutate()}
+          disabled={refresh.isPending}
+        >
+          <RefreshCw
+            className={`size-3.5 ${refresh.isPending ? "animate-spin motion-reduce:animate-none" : ""}`}
+          />
+          {refresh.isPending ? "Refreshing…" : "Refresh"}
+        </Button>
       </div>
 
       {isLoading ? (
