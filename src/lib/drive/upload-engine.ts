@@ -533,6 +533,9 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
         mimeType: file.type,
       };
     }
+    // ★A FAILED PICKER UPLOAD IS NEVER RETRIED: the next try is a new call, a new queue and a new api session. Left open, each failure held one of
+    // the person's 20 open-upload slots for 24 hours until "You already have 20 uploads in progress". Drop the session now (a no-op when none was opened).
+    queue.cancel(row!.id);
     throw new UploadFailed(settled.error ?? "This file could not be uploaded.", settled.final === true, settled.quotaFull === true);
   } finally {
     unsub();
