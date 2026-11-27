@@ -204,7 +204,7 @@ describe("Restore on a dismissed insight", () => {
   let root: Root | null = null;
   let host: HTMLElement;
   const item = (key: string): Insight =>
-    ({ key, type: "missing_store_info", title: `Title ${key}`, count: 3, shopperDays: 3, trend: "flat", why: "", nextStep: { label: "", kind: "none" }, status: "dismissed", evidence: { available: 1, expired: 0 }, surfaces: [], lastAskedAt: "" }) as Insight;
+    ({ key, type: "product_demand", title: `Title ${key}`, count: 3, shopperDays: 3, trend: "flat", why: "", nextStep: { label: "", kind: "none" }, status: "dismissed", evidence: { available: 1, expired: 0 }, surfaces: [], lastAskedAt: "" }) as Insight;
   afterEach(async () => {
     await act(async () => root?.unmount());
     root = null;
