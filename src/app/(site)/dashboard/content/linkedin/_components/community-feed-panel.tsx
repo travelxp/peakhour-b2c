@@ -41,6 +41,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { RetentionFootnote } from "./retention-footnote";
+import { LinkedInRefreshButton } from "./linkedin-refresh-button";
 import {
   ReplyBox,
   engageErrorMessage,
@@ -139,7 +140,7 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
   // a dead end with no way back to a filter that works — LibraryPanel
   // renders its own filter row above these branches for the same reason.
   const chips = (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {FILTERS.map((f) => (
         <Button
           key={f.key}
@@ -157,6 +158,7 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
           )}
         </Button>
       ))}
+      <LinkedInRefreshButton className="ml-auto" />
     </div>
   );
 
