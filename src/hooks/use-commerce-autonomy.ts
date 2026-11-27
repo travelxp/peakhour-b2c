@@ -17,7 +17,6 @@ export interface AutonomyGuardrails {
   maxDiscountPct?: number;
   maxSpendMinor?: number;
   maxActionsPerDay?: number;
-  reversibilityWindowHours?: number;
   businessHoursOnly?: boolean;
 }
 
